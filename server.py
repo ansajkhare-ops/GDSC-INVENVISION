@@ -40,158 +40,199 @@ app.json_provider_class = CustomJSONProvider
 app.json = CustomJSONProvider(app)
 
 # ─── PostgreSQL / Supabase Setup ─────────────
-# Set DATABASE_URL in .env as your Supabase connection string
-# Format: postgresql://user:password@host:port/dbname
-DATABASE_URL = os.environ.get('DATABASE_URL', '')
+# Railway: set DATABASE_URL in Variables tab
+# Format: postgresql://user:password@host:5432/dbname?sslmode=require
+_raw_url = os.environ.get('DATABASE_URL', '')
 
-_db_available = False
+# Ensure sslmode=require is always present (critical for Railway)
+if _raw_url and 'sslmode=' not in _raw_url:
+    DATABASE_URL = _raw_url + ('&' if '?' in _raw_url else '?') + 'sslmode=require'
+else:
+    DATABASE_URL = _raw_url
+
+_db_available   = False
+_db_init_error  = ''   # stores exact error for debugging
+
+
+def _make_conn():
+    """Open a new PostgreSQL connection with a 10s timeout."""
+    import psycopg2
+    conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+    conn.autocommit = True
+    return conn
+
+
+def _check_db():
+    """Dynamically test DB connectivity — called per-request."""
+    global _db_available, _db_init_error
+    if not DATABASE_URL:
+        _db_available  = False
+        _db_init_error = 'DATABASE_URL environment variable is not set'
+        return False
+    try:
+        conn = _make_conn()
+        conn.close()
+        _db_available  = True
+        _db_init_error = ''
+        return True
+    except Exception as e:
+        _db_available  = False
+        _db_init_error = str(e)
+        return False
+
 
 def init_db():
-    """Connect to PostgreSQL and create tables. Gracefully fails if not configured."""
-    global _db_available
+    """Connect to PostgreSQL and create tables. Retries 3 times on failure."""
+    global _db_available, _db_init_error
     if not DATABASE_URL:
-        print('[DB] DATABASE_URL not set. Running in fallback mode.')
+        print('[DB] DATABASE_URL not set. Running in localStorage fallback mode.')
+        _db_init_error = 'DATABASE_URL not set'
         return
-    try:
-        import psycopg2
-        conn = psycopg2.connect(DATABASE_URL)
-        conn.autocommit = True
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id         SERIAL PRIMARY KEY,
-                email      VARCHAR(255) NOT NULL UNIQUE,
-                name       VARCHAR(255),
-                picture    VARCHAR(512),
-                created_at TIMESTAMP DEFAULT NOW(),
-                last_login TIMESTAMP DEFAULT NOW()
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS inventory (
-                id            SERIAL PRIMARY KEY,
-                user_email    VARCHAR(255) NOT NULL,
-                item_name     VARCHAR(255) NOT NULL,
-                current_stock FLOAT DEFAULT 0,
-                reorder_point FLOAT DEFAULT 0,
-                next_week     FLOAT DEFAULT 0,
-                next_month    FLOAT DEFAULT 0,
-                days_left     INT DEFAULT 0,
-                status        VARCHAR(20) DEFAULT 'ok',
-                updated_date  VARCHAR(50),
-                expiry_date   VARCHAR(50),
-                updated_at    TIMESTAMP DEFAULT NOW(),
-                CONSTRAINT uq_user_item UNIQUE (user_email, item_name)
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS prediction_history (
-                id            SERIAL PRIMARY KEY,
-                user_email    VARCHAR(255) NOT NULL,
-                item_name     VARCHAR(255) NOT NULL,
-                model         VARCHAR(50),
-                auto_selected VARCHAR(50),
-                next_day      FLOAT,
-                next_week     FLOAT,
-                next_month    FLOAT,
-                status        VARCHAR(20),
-                sales_count   INT,
-                created_at    TIMESTAMP DEFAULT NOW()
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS products (
-                id            SERIAL PRIMARY KEY,
-                user_email    VARCHAR(255) NOT NULL,
-                name          VARCHAR(255) NOT NULL,
-                category      VARCHAR(100) DEFAULT 'General',
-                unit          VARCHAR(50)  DEFAULT 'pcs',
-                description   TEXT,
-                buying_price  DECIMAL(10,2) DEFAULT 0,
-                selling_price DECIMAL(10,2) DEFAULT 0,
-                min_stock     DECIMAL(10,2) DEFAULT 0,
-                current_stock DECIMAL(10,2) DEFAULT 0,
-                created_at    TIMESTAMP DEFAULT NOW(),
-                CONSTRAINT uq_product UNIQUE (user_email, name)
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS stock_in (
-                id           SERIAL PRIMARY KEY,
-                user_email   VARCHAR(255) NOT NULL,
-                product_id   INT REFERENCES products(id) ON DELETE CASCADE,
-                product_name VARCHAR(255),
-                quantity     DECIMAL(10,2) NOT NULL,
-                buying_price DECIMAL(10,2) DEFAULT 0,
-                supplier     VARCHAR(255),
-                batch_no     VARCHAR(100),
-                expiry_date  DATE,
-                note         TEXT,
-                created_at   TIMESTAMP DEFAULT NOW()
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS invoices (
-                id             SERIAL PRIMARY KEY,
-                user_email     VARCHAR(255) NOT NULL,
-                invoice_no     VARCHAR(50) UNIQUE,
-                customer_name  VARCHAR(255) DEFAULT 'Walk-in',
-                customer_phone VARCHAR(20),
-                subtotal       DECIMAL(10,2) DEFAULT 0,
-                discount       DECIMAL(10,2) DEFAULT 0,
-                tax_pct        DECIMAL(5,2)  DEFAULT 0,
-                tax_amount     DECIMAL(10,2) DEFAULT 0,
-                total          DECIMAL(10,2) DEFAULT 0,
-                payment_mode   VARCHAR(50)   DEFAULT 'Cash',
-                status         VARCHAR(20)   DEFAULT 'paid',
-                created_at     TIMESTAMP DEFAULT NOW()
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS invoice_items (
-                id           SERIAL PRIMARY KEY,
-                invoice_id   INT REFERENCES invoices(id) ON DELETE CASCADE,
-                user_email   VARCHAR(255) NOT NULL,
-                product_id   INT REFERENCES products(id),
-                product_name VARCHAR(255),
-                quantity     DECIMAL(10,2),
-                unit_price   DECIMAL(10,2),
-                total        DECIMAL(10,2),
-                created_at   TIMESTAMP DEFAULT NOW()
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS customers (
-                id              SERIAL PRIMARY KEY,
-                user_email      VARCHAR(255) NOT NULL,
-                name            VARCHAR(255) NOT NULL,
-                phone           VARCHAR(20),
-                address         TEXT,
-                credit_limit    DECIMAL(10,2) DEFAULT 0,
-                balance_due     DECIMAL(10,2) DEFAULT 0,
-                total_purchased DECIMAL(10,2) DEFAULT 0,
-                created_at      TIMESTAMP DEFAULT NOW()
-            )""")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS customer_payments (
-                id           SERIAL PRIMARY KEY,
-                user_email   VARCHAR(255) NOT NULL,
-                customer_id  INT REFERENCES customers(id) ON DELETE CASCADE,
-                amount       DECIMAL(10,2) NOT NULL,
-                note         VARCHAR(255),
-                payment_mode VARCHAR(50) DEFAULT 'Cash',
-                type         VARCHAR(20) DEFAULT 'payment',
-                created_at   TIMESTAMP DEFAULT NOW()
-            )""")
-        cur.close()
-        conn.close()
-        _db_available = True
-        print('[DB] PostgreSQL (Supabase) connected and tables ready.')
-    except Exception as e:
-        _db_available = False
-        print(f'[DB] PostgreSQL not available: {e}')
-        print('[DB] Running in localStorage fallback mode.')
+    for attempt in range(1, 4):
+        try:
+            import psycopg2
+            conn = _make_conn()
+            cur  = conn.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id         SERIAL PRIMARY KEY,
+                    email      VARCHAR(255) NOT NULL UNIQUE,
+                    name       VARCHAR(255),
+                    picture    VARCHAR(512),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    last_login TIMESTAMP DEFAULT NOW()
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS inventory (
+                    id            SERIAL PRIMARY KEY,
+                    user_email    VARCHAR(255) NOT NULL,
+                    item_name     VARCHAR(255) NOT NULL,
+                    current_stock FLOAT DEFAULT 0,
+                    reorder_point FLOAT DEFAULT 0,
+                    next_week     FLOAT DEFAULT 0,
+                    next_month    FLOAT DEFAULT 0,
+                    days_left     INT DEFAULT 0,
+                    status        VARCHAR(20) DEFAULT 'ok',
+                    updated_date  VARCHAR(50),
+                    expiry_date   VARCHAR(50),
+                    updated_at    TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT uq_user_item UNIQUE (user_email, item_name)
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS prediction_history (
+                    id            SERIAL PRIMARY KEY,
+                    user_email    VARCHAR(255) NOT NULL,
+                    item_name     VARCHAR(255) NOT NULL,
+                    model         VARCHAR(50),
+                    auto_selected VARCHAR(50),
+                    next_day      FLOAT,
+                    next_week     FLOAT,
+                    next_month    FLOAT,
+                    status        VARCHAR(20),
+                    sales_count   INT,
+                    created_at    TIMESTAMP DEFAULT NOW()
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS products (
+                    id            SERIAL PRIMARY KEY,
+                    user_email    VARCHAR(255) NOT NULL,
+                    name          VARCHAR(255) NOT NULL,
+                    category      VARCHAR(100) DEFAULT 'General',
+                    unit          VARCHAR(50)  DEFAULT 'pcs',
+                    description   TEXT,
+                    buying_price  DECIMAL(10,2) DEFAULT 0,
+                    selling_price DECIMAL(10,2) DEFAULT 0,
+                    min_stock     DECIMAL(10,2) DEFAULT 0,
+                    current_stock DECIMAL(10,2) DEFAULT 0,
+                    created_at    TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT uq_product UNIQUE (user_email, name)
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS stock_in (
+                    id           SERIAL PRIMARY KEY,
+                    user_email   VARCHAR(255) NOT NULL,
+                    product_id   INT REFERENCES products(id) ON DELETE CASCADE,
+                    product_name VARCHAR(255),
+                    quantity     DECIMAL(10,2) NOT NULL,
+                    buying_price DECIMAL(10,2) DEFAULT 0,
+                    supplier     VARCHAR(255),
+                    batch_no     VARCHAR(100),
+                    expiry_date  DATE,
+                    note         TEXT,
+                    created_at   TIMESTAMP DEFAULT NOW()
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS invoices (
+                    id             SERIAL PRIMARY KEY,
+                    user_email     VARCHAR(255) NOT NULL,
+                    invoice_no     VARCHAR(50) UNIQUE,
+                    customer_name  VARCHAR(255) DEFAULT 'Walk-in',
+                    customer_phone VARCHAR(20),
+                    subtotal       DECIMAL(10,2) DEFAULT 0,
+                    discount       DECIMAL(10,2) DEFAULT 0,
+                    tax_pct        DECIMAL(5,2)  DEFAULT 0,
+                    tax_amount     DECIMAL(10,2) DEFAULT 0,
+                    total          DECIMAL(10,2) DEFAULT 0,
+                    payment_mode   VARCHAR(50)   DEFAULT 'Cash',
+                    status         VARCHAR(20)   DEFAULT 'paid',
+                    created_at     TIMESTAMP DEFAULT NOW()
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS invoice_items (
+                    id           SERIAL PRIMARY KEY,
+                    invoice_id   INT REFERENCES invoices(id) ON DELETE CASCADE,
+                    user_email   VARCHAR(255) NOT NULL,
+                    product_id   INT REFERENCES products(id),
+                    product_name VARCHAR(255),
+                    quantity     DECIMAL(10,2),
+                    unit_price   DECIMAL(10,2),
+                    total        DECIMAL(10,2),
+                    created_at   TIMESTAMP DEFAULT NOW()
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS customers (
+                    id              SERIAL PRIMARY KEY,
+                    user_email      VARCHAR(255) NOT NULL,
+                    name            VARCHAR(255) NOT NULL,
+                    phone           VARCHAR(20),
+                    address         TEXT,
+                    credit_limit    DECIMAL(10,2) DEFAULT 0,
+                    balance_due     DECIMAL(10,2) DEFAULT 0,
+                    total_purchased DECIMAL(10,2) DEFAULT 0,
+                    created_at      TIMESTAMP DEFAULT NOW()
+                )""")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS customer_payments (
+                    id           SERIAL PRIMARY KEY,
+                    user_email   VARCHAR(255) NOT NULL,
+                    customer_id  INT REFERENCES customers(id) ON DELETE CASCADE,
+                    amount       DECIMAL(10,2) NOT NULL,
+                    note         VARCHAR(255),
+                    payment_mode VARCHAR(50) DEFAULT 'Cash',
+                    type         VARCHAR(20) DEFAULT 'payment',
+                    created_at   TIMESTAMP DEFAULT NOW()
+                )""")
+            cur.close()
+            conn.close()
+            _db_available  = True
+            _db_init_error = ''
+            print(f'[DB] PostgreSQL (Supabase) connected and tables ready. (attempt {attempt})')
+            return
+        except Exception as e:
+            _db_init_error = str(e)
+            print(f'[DB] Attempt {attempt}/3 failed: {e}')
+            import time; time.sleep(2)
+    _db_available = False
+    print(f'[DB] All connection attempts failed. Last error: {_db_init_error}')
+    print('[DB] Running in localStorage fallback mode.')
 
 
 @contextmanager
 def get_db():
-    """Yield a PostgreSQL connection with autocommit."""
-    import psycopg2
-    conn = psycopg2.connect(DATABASE_URL)
-    conn.autocommit = True
+    """Yield a PostgreSQL connection. Raises clear error if DB unavailable."""
+    if not DATABASE_URL:
+        raise RuntimeError('DATABASE_URL is not set. Add it in Railway Variables.')
+    conn = _make_conn()
     try:
         yield conn
     finally:
@@ -202,6 +243,7 @@ def dict_cursor(conn):
     """Return a cursor that yields dict-like rows."""
     import psycopg2.extras
     return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
 
 
 # ─── Google OAuth ─────────────────────────────
@@ -620,7 +662,14 @@ def get_suggestions():
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'db': _db_available})
+    live = _check_db()
+    return jsonify({
+        'status':        'ok' if live else 'db_error',
+        'db_available':  live,
+        'db_error':      _db_init_error if not live else None,
+        'db_url_set':    bool(DATABASE_URL),
+        'db_host':       DATABASE_URL.split('@')[-1].split('/')[0] if DATABASE_URL else None,
+    })
 
 
 @app.route('/api/analytics-charts', methods=['GET'])
@@ -630,10 +679,10 @@ def analytics_charts():
     from datetime import date, timedelta
     email = session['user']['email']
     if not _db_available:
-        return jsonify({'error': 'DB not available'}), 503
+        return jsonify({'error': 'DB not available', 'detail': _db_init_error}), 503
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
 
             # 1. Daily revenue last 30 days
             since30 = date.today() - timedelta(days=29)
