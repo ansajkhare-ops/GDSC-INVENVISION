@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InvenVision – Inventory Demand Predictor</title>
+  <meta name="description" content="AI-powered inventory demand forecasting. Predict future stock, avoid overstock and stockouts." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <!-- Animated Background -->
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#lG)"/>
+            <path d="M8 20L14 12L18 17L22 10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="24" cy="9" r="2" fill="#a78bfa"/>
+            <defs>
+              <linearGradient id="lG" x1="0" y1="0" x2="32" y2="32">
+                <stop stop-color="#6d28d9"/><stop offset="1" stop-color="#4f46e5"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="logo-text">InvenVision</span>
+      </div>
+
+      <nav class="nav-tabs" id="mainNav">
+        <button class="nav-btn active" id="nav-predict"   onclick="switchTab('predict')">Predict</button>
+        <button class="nav-btn"        id="nav-compare"   onclick="switchTab('compare')">Compare</button>
+        <button class="nav-btn"        id="nav-inventory" onclick="switchTab('inventory')">Inventory</button>
+        <button class="nav-btn"        id="nav-history"   onclick="switchTab('history')">History</button>
+      </nav>
+
+      <div class="header-actions">
+        <span id="dbBadge" class="db-badge" title="Checking database...">⏳ DB</span>
+        <button class="icon-btn" id="notifBtn" onclick="toggleNotifications()" title="Notifications">🔔</button>
+        <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+        <div class="user-chip">
+          <img src="{{ user.picture }}" alt="{{ user.name }}" class="user-avatar" id="userAvatar" onerror="this.src='https://ui-avatars.com/api/?name={{ user.name }}&background=6d28d9&color=fff'" />
+          <span class="user-name" id="userName">{{ user.given_name }}</span>
+          <a href="/logout" class="logout-btn" title="Sign out">↩</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Bottom Nav -->
+  <nav class="mobile-nav">
+    <button class="mob-btn active" id="mob-predict"   onclick="switchTab('predict')">   <span>🔮</span><span>Predict</span></button>
+    <button class="mob-btn"        id="mob-compare"   onclick="switchTab('compare')">   <span>📊</span><span>Compare</span></button>
+    <button class="mob-btn"        id="mob-inventory" onclick="switchTab('inventory')"> <span>📦</span><span>Inventory</span></button>
+    <button class="mob-btn"        id="mob-history"   onclick="switchTab('history')">   <span>🕰️</span><span>History</span></button>
+  </nav>
+
+  <main class="main">
+
+    <!-- ══ SMART COMMAND CENTER ═══════════════ -->
+    <div class="command-center" id="commandCenter">
+      <div class="cmd-top">
+        <div class="cmd-title-wrap">
+          <span class="cmd-brain">🧠</span>
+          <div>
+            <div class="cmd-title">Smart Command Center</div>
+            <div class="cmd-sub">AI-powered real-time inventory intelligence</div>
+          </div>
+        </div>
+        <div class="cmd-actions">
+          <span class="cmd-tag">Decision Dashboard</span>
+          <button class="cmd-refresh" onclick="loadCommandCenter()">↻ Refresh</button>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="cmd-stats">
+        <div class="cmd-stat">
+          <div class="cmd-stat-num" id="cmdTotal">—</div>
+          <div class="cmd-stat-lbl">📦 Items Tracked</div>
+        </div>
+        <div class="cmd-stat red">
+          <div class="cmd-stat-num" id="cmdAlerts">—</div>
+          <div class="cmd-stat-lbl">🚨 Active Alerts</div>
+        </div>
+        <div class="cmd-stat green">
+          <div class="cmd-stat-num" id="cmdHealthy">—</div>
+          <div class="cmd-stat-lbl">✅ Healthy Items</div>
+        </div>
+        <div class="cmd-stat amber">
+          <div class="cmd-stat-num" id="cmdExpiring">—</div>
+          <div class="cmd-stat-lbl">⏰ Expiring Soon</div>
+        </div>
+      </div>
+
+      <!-- AI Suggestions -->
+      <div class="cmd-suggest-wrap">
+        <div class="cmd-suggest-hdr">💬 Today's AI Action Plan</div>
+        <div class="cmd-suggest-list" id="cmdSuggestions">
+          <div class="cmd-suggest-loading">Analyzing your inventory...</div>
+        </div>
+      </div>
+
+      <!-- Differentiators strip -->
+      <div class="diff-strip">
+        <span>🤖 Auto ML Forecasting</span><span class="diff-dot">·</span>
+        <span>⏰ Expiry Alerts</span><span class="diff-dot">·</span>
+        <span>📦 Dead Stock Detection</span><span class="diff-dot">·</span>
+        <span>📊 Multi-item Comparison</span><span class="diff-dot">·</span>
+        <span>🇮🇳 Built for Small Businesses</span>
+      </div>
+    </div>
+
+    <!-- ══ TAB: PREDICT ══════════════════════ -->
+    <section id="tab-predict" class="tab-content active">
+      <div class="page-hero">
+        <h1 class="hero-title">Demand <span class="gradient-text">Forecasting</span></h1>
+        <p class="hero-subtitle">Enter item details and past sales to get AI-powered demand predictions and reorder recommendations.</p>
+      </div>
+
+      <div class="content-grid">
+
+        <!-- Input Panel -->
+        <div class="panel glass-panel input-panel">
+          <div class="panel-header">
+            <div class="panel-icon purple">📦</div>
+            <div><h2 class="panel-title">Item Setup</h2><p class="panel-desc">Configure your product</p></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Item Name</label>
+            <input type="text" id="itemName" class="form-input" placeholder="e.g. Wireless Earbuds" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Current Stock (units)</label>
+              <input type="number" id="currentStock" class="form-input" placeholder="e.g. 150" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reorder Point (units)</label>
+              <input type="number" id="reorderPoint" class="form-input" placeholder="e.g. 30" min="0" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lead Time (days to restock)</label>
+            <input type="number" id="leadTime" class="form-input" placeholder="e.g. 7" min="1" />
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="panel-header" style="margin-bottom:12px">
+            <div class="panel-icon blue">📈</div>
+            <div><h2 class="panel-title">Past Sales Data</h2><p class="panel-desc">Enter or upload daily sales</p></div>
+          </div>
+
+          <!-- Feature D: CSV Upload -->
+          <div class="upload-zone" id="uploadZone" onclick="document.getElementById('csvFile').click()">
+            <input type="file" id="csvFile" accept=".csv,.txt" style="display:none" onchange="handleFileUpload(this)" />
+            <div class="upload-icon">📂</div>
+            <div class="upload-text">Drop a CSV file here or <span class="upload-link">browse</span></div>
+            <div class="upload-hint">One number per row, or date,units format</div>
+          </div>
+
+          <div class="form-group" style="margin-top:14px">
+            <label class="form-label">Sales History (units/day) — comma-separated</label>
+            <textarea id="salesData" class="form-input form-textarea" placeholder="e.g. 12, 15, 10, 18, 20, 14, 16, 22..."></textarea>
+            <p class="form-hint">Minimum 7 days recommended</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Expiry Date <span style="color:var(--text-3);font-size:0.75rem">(optional — for perishables)</span></label>
+            <input type="date" id="expiryDate" class="form-input" />
+          </div>
+
+          <div class="quick-fill">
+            <span class="quick-label">Quick fill:</span>
+            <button class="quick-btn" onclick="quickFill('electronics')">Electronics</button>
+            <button class="quick-btn" onclick="quickFill('grocery')">Grocery</button>
+            <button class="quick-btn" onclick="quickFill('fashion')">Fashion</button>
+            <button class="quick-btn" onclick="quickFill('seasonal')">Seasonal</button>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Forecast Model</label>
+            <select id="forecastModel" class="form-input form-select">
+              <option value="auto">⚡ Auto (Best Model Selected by AI)</option>
+              <option value="sma">Simple Moving Average (SMA)</option>
+              <option value="ema" selected>Exponential Moving Average (EMA)</option>
+              <option value="holt">Holt's Double Exponential Smoothing</option>
+              <option value="linear">Linear Regression</option>
+            </select>
+          </div>
+
+          <button class="btn-primary" id="predictBtn" onclick="runPrediction()">
+            <span class="btn-icon">✨</span> Generate Forecast
+          </button>
+        </div>
+
+        <!-- Results Column -->
+        <div class="results-column">
+
+          <!-- Skeleton Loader -->
+          <div id="skeletonLoader" class="skeleton-container hidden">
+            <div class="skel-cards">
+              <div class="skel-card"><div class="skel-line skel-sm"></div><div class="skel-line skel-lg"></div><div class="skel-line skel-sm"></div></div>
+              <div class="skel-card"><div class="skel-line skel-sm"></div><div class="skel-line skel-lg"></div><div class="skel-line skel-sm"></div></div>
+              <div class="skel-card"><div class="skel-line skel-sm"></div><div class="skel-line skel-lg"></div><div class="skel-line skel-sm"></div></div>
+            </div>
+            <div class="skel-chart"></div>
+          </div>
+
+          <!-- Results Area -->
+          <div id="resultsArea" class="results-area hidden">
+
+            <!-- Feature J: Auto model badge -->
+            <div id="autoModelBadge" class="auto-badge hidden">
+              <span>⚡</span> <span id="autoModelText"></span>
+            </div>
+
+            <!-- Forecast Cards -->
+            <div class="forecast-cards">
+              <div class="forecast-card">
+                <div class="card-period">Tomorrow</div>
+                <div class="card-value" id="val-day">—</div>
+                <div class="card-unit">units</div>
+                <!-- Feature I: confidence range -->
+                <div class="card-confidence" id="conf-day"></div>
+                <div class="card-trend" id="trend-day"></div>
+              </div>
+              <div class="forecast-card">
+                <div class="card-period">Next 7 Days</div>
+                <div class="card-value" id="val-week">—</div>
+                <div class="card-unit">units</div>
+                <div class="card-confidence" id="conf-week"></div>
+                <div class="card-trend" id="trend-week"></div>
+              </div>
+              <div class="forecast-card">
+                <div class="card-period">Next 30 Days</div>
+                <div class="card-value" id="val-month">—</div>
+                <div class="card-unit">units</div>
+                <div class="card-confidence" id="conf-month"></div>
+                <div class="card-trend" id="trend-month"></div>
+              </div>
+            </div>
+
+            <!-- Reorder Alert -->
+            <div id="reorderAlert" class="reorder-alert"></div>
+
+            <!-- Feature H: Seasonality Insight -->
+            <div id="seasonalityCard" class="seasonality-card hidden">
+              <span class="seas-icon">📅</span>
+              <div><strong>Seasonality Insight</strong><div id="seasonalityText" class="seas-text"></div></div>
+            </div>
+
+            <!-- Chart -->
+            <div class="panel glass-panel chart-panel" id="chartPanel">
+              <div class="panel-header">
+                <div class="panel-icon green">📊</div>
+                <div><h2 class="panel-title">Sales Trend &amp; Forecast</h2><p class="panel-desc">Historical vs projected demand with confidence band</p></div>
+              </div>
+              <div class="chart-wrapper"><canvas id="forecastChart"></canvas></div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-row">
+              <div class="stat-box"><div class="stat-label">Avg Daily</div><div class="stat-value" id="stat-avg">—</div></div>
+              <div class="stat-box"><div class="stat-label">Peak Day</div><div class="stat-value" id="stat-peak">—</div></div>
+              <div class="stat-box"><div class="stat-label">Volatility</div><div class="stat-value" id="stat-vol">—</div></div>
+              <div class="stat-box"><div class="stat-label">Days Left</div><div class="stat-value" id="stat-days">—</div></div>
+            </div>
+
+            <!-- Feature A: Export Buttons -->
+            <div class="export-row">
+              <button class="btn-export" onclick="exportCSV()"><span>📥</span> Export CSV</button>
+              <button class="btn-export" onclick="exportPDF()"><span>📄</span> Export PDF</button>
+              <button class="btn-secondary" style="flex:1" onclick="saveToInventory()"><span>💾</span> Save to Inventory</button>
+            </div>
+
+          </div>
+
+          <!-- Empty State -->
+          <div id="emptyState" class="empty-state">
+            <div class="empty-icon">🔮</div>
+            <h3 class="empty-title">Ready to Forecast</h3>
+            <p class="empty-desc">Fill in item details and sales data, then click <strong>Generate Forecast</strong>.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TAB: COMPARE (Feature B) ══════════ -->
+    <section id="tab-compare" class="tab-content">
+      <div class="page-hero">
+        <h1 class="hero-title">Item <span class="gradient-text">Comparison</span></h1>
+        <p class="hero-subtitle">Compare demand forecasts across all your saved inventory items side by side.</p>
+      </div>
+      <div id="compareEmpty" class="empty-state" style="max-width:480px;margin:0 auto">
+        <div class="empty-icon">📊</div>
+        <h3 class="empty-title">Nothing to Compare Yet</h3>
+        <p class="empty-desc">Save at least 2 items to Inventory from the Predict tab to see comparisons here.</p>
+        <button class="btn-primary" style="margin-top:20px;max-width:220px" onclick="switchTab('predict')">+ Predict an Item</button>
+      </div>
+      <div id="compareContent" class="hidden">
+        <div class="panel glass-panel chart-panel" style="margin-bottom:20px">
+          <div class="panel-header">
+            <div class="panel-icon purple">📈</div>
+            <div><h2 class="panel-title">7-Day Demand Forecast</h2><p class="panel-desc">All items compared</p></div>
+          </div>
+          <div class="chart-wrapper"><canvas id="compareChart"></canvas></div>
+        </div>
+        <div class="panel glass-panel chart-panel">
+          <div class="panel-header">
+            <div class="panel-icon blue">📦</div>
+            <div><h2 class="panel-title">Stock vs 30-Day Demand</h2><p class="panel-desc">Identify items at risk</p></div>
+          </div>
+          <div class="chart-wrapper"><canvas id="compareChart2"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ TAB: INVENTORY ════════════════════ -->
+    <section id="tab-inventory" class="tab-content">
+      <div class="page-hero">
+        <h1 class="hero-title">Inventory <span class="gradient-text">Dashboard</span></h1>
+        <p class="hero-subtitle">Monitor all tracked products and their stock health at a glance.</p>
+      </div>
+      <div id="inventoryEmpty" class="empty-state" style="max-width:480px;margin:0 auto">
+        <div class="empty-icon">🗂️</div>
+        <h3 class="empty-title">No Items Yet</h3>
+        <p class="empty-desc">Go to <strong>Predict</strong>, run a forecast, and save the item here.</p>
+        <button class="btn-primary" style="margin-top:20px;max-width:200px" onclick="switchTab('predict')">+ Add First Item</button>
+      </div>
+      <div id="inventoryGrid" class="inventory-grid hidden"></div>
+    </section>
+
+    <!-- ══ TAB: HISTORY ══════════════════════ -->
+    <section id="tab-history" class="tab-content">
+      <div class="page-hero">
+        <h1 class="hero-title">Prediction <span class="gradient-text">History</span></h1>
+        <p class="hero-subtitle">Review all past forecasts and compare models over time.</p>
+      </div>
+      <div id="historyEmpty" class="empty-state" style="max-width:480px;margin:0 auto">
+        <div class="empty-icon">🕰️</div>
+        <h3 class="empty-title">No History Yet</h3>
+        <p class="empty-desc">Generate your first prediction to see your forecast history here.</p>
+      </div>
+      <div id="historyList" class="history-list hidden"></div>
+    </section>
+
+  </main>
+
+  <!-- Future-ready footer -->
+  <div class="future-banner">
+    <span>🌐 Currently a web platform — architected to scale to mobile app and offline-first system</span>
+    <span class="future-sep">·</span>
+    <span>Making AI affordable for India's 60M small businesses</span>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

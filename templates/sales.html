@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Sales & Invoice — InvenVision Pro{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div class="page-title-wrap">
+    <div class="page-title">🧾 Sales & Invoice</div>
+    <div class="page-subtitle">Create sales, generate bills, monitor revenue</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-primary btn-sm" onclick="openNewSale()">+ New Sale</button>
+  </div>
+</header>
+
+<div class="page-body">
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon blue">🧾</div>
+      <div><div class="stat-num" id="sTodayBills">—</div><div class="stat-lbl">Today's Bills</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon green">💰</div>
+      <div><div class="stat-num" id="sTodayRevenue">—</div><div class="stat-lbl">Today's Revenue (₹)</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon purple">📦</div>
+      <div><div class="stat-num" id="sTotalBills">—</div><div class="stat-lbl">Total Bills</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon amber">📈</div>
+      <div><div class="stat-num" id="sTotalRevenue">—</div><div class="stat-lbl">Total Revenue (₹)</div></div>
+    </div>
+  </div>
+
+  <!-- Sales History -->
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Sales History</div>
+        <div class="panel-sub">Click any invoice to view details</div>
+      </div>
+      <div class="panel-actions">
+        <input class="form-control" style="width:200px" placeholder="Search customer..." oninput="filterInvoices(this.value)"/>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice #</th><th>Date & Time</th><th>Customer</th>
+            <th>Items</th><th>Total (₹)</th><th>Payment</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="invoicesTbody">
+          <tr><td colspan="8" class="tbl-empty">Loading invoices...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ NEW SALE MODAL ═════════════════════════ -->
+<div class="modal-overlay" id="newSaleModal">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <div class="modal-title">🧾 Create New Sale</div>
+      <button class="modal-close" onclick="closeModal('newSaleModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="sidebar-layout">
+
+        <!-- Left: Product Search & Add -->
+        <div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Search & Add Product</label>
+            <div style="position:relative">
+              <input id="productSearchInput" class="form-control" placeholder="Type product name..." autocomplete="off" oninput="searchProductsForSale(this.value)"/>
+              <div id="productSearchResults" class="search-results" style="display:none"></div>
+            </div>
+          </div>
+
+          <!-- Cart Items -->
+          <div id="cartItems" style="min-height:120px;margin-bottom:12px">
+            <div class="empty-state" style="padding:24px">
+              <div class="empty-icon">🛒</div>
+              <div class="empty-desc">Search and add products above</div>
+            </div>
+          </div>
+
+          <!-- Totals -->
+          <div id="cartTotals" style="display:none">
+            <div class="divider"></div>
+            <div class="cart-total-row"><span>Subtotal</span><span>₹<span id="cartSubtotal">0.00</span></span></div>
+            <div class="cart-total-row">
+              <span>Discount (₹)</span>
+              <input id="saleDiscount" class="form-control" type="number" min="0" value="0" style="width:80px" oninput="recalcCart()"/>
+            </div>
+            <div class="cart-total-row">
+              <span>Tax (%)</span>
+              <input id="saleTax" class="form-control" type="number" min="0" max="100" value="0" step="0.5" style="width:80px" oninput="recalcCart()"/>
+            </div>
+            <div class="cart-total-row final"><span>Total</span><span>₹<span id="cartTotal">0.00</span></span></div>
+          </div>
+        </div>
+
+        <!-- Right: Customer & Payment -->
+        <div>
+          <div class="panel" style="margin-bottom:14px">
+            <div class="panel-head"><div class="panel-title">Customer Details</div></div>
+            <div class="panel-body">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">Customer Name</label>
+                  <input id="custName" class="form-control" value="Walk-in Customer" placeholder="Customer name"/>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Phone (optional)</label>
+                  <input id="custPhone" class="form-control" placeholder="10-digit number"/>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">Payment</div></div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label class="form-label">Payment Mode</label>
+                <select id="payMode" class="form-control form-select">
+                  <option>Cash</option><option>UPI</option><option>Card</option><option>Credit</option>
+                </select>
+              </div>
+              <div style="margin-top:16px">
+                <div style="font-size:0.78rem;color:var(--text3);margin-bottom:4px">Amount to Collect</div>
+                <div style="font-size:2rem;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace">₹<span id="finalAmtDisplay">0.00</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('newSaleModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createInvoice()">✓ Create Invoice &amp; Print</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ INVOICE VIEW MODAL ════════════════════ -->
+<div class="modal-overlay" id="invoiceViewModal">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <div class="modal-title">Invoice Details</div>
+      <button class="modal-close" onclick="closeModal('invoiceViewModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="invoicePreviewContent"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('invoiceViewModal')">Close</button>
+      <button class="btn btn-primary" onclick="printInvoice()">🖨️ Print Invoice</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='sales.js') }}"></script>
+{% endblock %}

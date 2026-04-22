@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Customer Khata — InvenVision Pro{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div class="page-title-wrap">
+    <div class="page-title">👥 Customer Khata</div>
+    <div class="page-subtitle">Track credit sales & collect payments — digital ledger for every customer</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-primary btn-sm" onclick="openModal('addCustomerModal')">+ Add Customer</button>
+  </div>
+</header>
+
+<div class="page-body">
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-icon blue">👥</div>
+      <div><div class="stat-num" id="cTotal">—</div><div class="stat-lbl">Total Customers</div></div></div>
+    <div class="stat-card"><div class="stat-icon red">💸</div>
+      <div><div class="stat-num" id="cTotalDue">—</div><div class="stat-lbl">Total Due (₹)</div></div></div>
+    <div class="stat-card"><div class="stat-icon amber">⚠️</div>
+      <div><div class="stat-num" id="cOverdue">—</div><div class="stat-lbl">Customers with Dues</div></div></div>
+    <div class="stat-card"><div class="stat-icon green">💰</div>
+      <div><div class="stat-num" id="cTotalBusiness">—</div><div class="stat-lbl">Total Business (₹)</div></div></div>
+  </div>
+
+  <!-- Customers Table -->
+  <div class="panel">
+    <div class="panel-head">
+      <div><div class="panel-title">Customer Ledger (Khata)</div>
+        <div class="panel-sub">Click "View Khata" to see/add credit sales and payments</div></div>
+      <div class="panel-actions">
+        <input class="form-control" style="width:200px" placeholder="Search customer..."
+          oninput="filterCustomers(this.value)"/>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Customer Name</th><th>Phone</th>
+            <th>Total Purchased</th><th>Amount Due</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="customersTbody">
+          <tr><td colspan="7" class="tbl-empty">Loading customers...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ADD CUSTOMER MODAL ════════════════════ -->
+<div class="modal-overlay" id="addCustomerModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">+ Add New Customer</div>
+      <button class="modal-close" onclick="closeModal('addCustomerModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input id="cName" class="form-control" placeholder="e.g. Ramesh Kumar"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input id="cPhone" class="form-control" placeholder="10-digit number" type="tel"/>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Address (optional)</label>
+          <input id="cAddress" class="form-control" placeholder="Shop or home address"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Credit Limit (₹) — 0 = No limit</label>
+          <input id="cCreditLimit" class="form-control" type="number" value="0" min="0"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('addCustomerModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addCustomer()">✓ Add Customer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CUSTOMER DETAIL / KHATA MODAL ════════ -->
+<div class="modal-overlay" id="customerDetailModal">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <div class="modal-title" id="detailCustomerName">Customer Khata</div>
+      <button class="modal-close" onclick="closeModal('customerDetailModal')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Summary Cards -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px" id="detailStats"></div>
+
+      <!-- TWO COLUMNS: Credit Sale | Payment -->
+      <div class="two-col" style="margin-bottom:16px">
+
+        <!-- Record Credit Sale -->
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title" style="color:var(--red)">💸 Record Credit Sale</div></div>
+          <div class="panel-body">
+            <div style="font-size:0.78rem;color:var(--text3);margin-bottom:10px">
+              Customer took goods but will pay later
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label">Sale Amount (₹) *</label>
+              <input id="creditAmount" class="form-control" type="number" min="0.01" step="0.01" placeholder="0.00"/>
+            </div>
+            <div class="form-group" style="margin-bottom:12px">
+              <label class="form-label">Note (what was sold)</label>
+              <input id="creditNote" class="form-control" placeholder="e.g. Paracetamol 50 strips"/>
+            </div>
+            <button class="btn btn-danger" style="width:100%" onclick="recordCreditSale()">
+              💸 Add Credit Sale
+            </button>
+          </div>
+        </div>
+
+        <!-- Collect Payment -->
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title" style="color:var(--green)">💵 Collect Payment</div></div>
+          <div class="panel-body">
+            <div style="font-size:0.78rem;color:var(--text3);margin-bottom:10px">
+              Customer is paying back their due amount
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label">Amount Received (₹) *</label>
+              <input id="payAmount" class="form-control" type="number" min="0.01" step="0.01" placeholder="0.00"/>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label">Payment Mode</label>
+              <select id="payMode2" class="form-control form-select">
+                <option>Cash</option><option>UPI</option><option>Card</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px">
+              <label class="form-label">Note</label>
+              <input id="payNote" class="form-control" placeholder="e.g. Partial payment"/>
+            </div>
+            <button class="btn btn-success" style="width:100%" onclick="recordPayment()">
+              ✓ Collect Payment
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaction History -->
+      <div style="font-size:0.84rem;font-weight:600;color:var(--text2);margin-bottom:10px">
+        📋 Transaction History
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Type</th><th>Amount</th><th>Mode</th><th>Note</th></tr>
+          </thead>
+          <tbody id="detailTbody">
+            <tr><td colspan="5" class="tbl-empty">No transactions yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger btn-sm" onclick="deleteCustomer()">🗑 Delete Customer</button>
+      <button class="btn btn-ghost" onclick="closeModal('customerDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='customers.js') }}"></script>
+{% endblock %}

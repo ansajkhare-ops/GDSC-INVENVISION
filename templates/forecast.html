@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+{% block title %}Smart Analysis — InvenVision Pro{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div class="page-title-wrap">
+    <div class="page-title">🔮 Smart Analysis</div>
+    <div class="page-subtitle">Live inventory alerts + per-product AI forecasting</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-ghost btn-sm" onclick="loadOverallAlerts()">↻ Refresh Alerts</button>
+  </div>
+</header>
+
+<div class="page-body">
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 1 — OVERALL NOTIFICATION CENTRE
+  ════════════════════════════════════════════ -->
+  <div class="panel" style="margin-bottom:22px">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">🔔 Smart Inventory Alerts</div>
+        <div class="panel-sub">Automatic scan of all your products — updated every time you open this page</div>
+      </div>
+      <div id="alertSummaryBadges" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+
+    <!-- Alert list -->
+    <div id="overallAlerts" style="padding:14px 18px">
+      <div style="text-align:center;padding:28px;color:var(--text3);font-size:0.84rem">
+        ⏳ Scanning your inventory...
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SECTION 2 — SINGLE PRODUCT ANALYSIS
+  ════════════════════════════════════════════ -->
+  <div style="border-top:1px solid var(--border);margin-bottom:20px;padding-top:20px">
+    <div style="font-size:1rem;font-weight:700;color:var(--text1);margin-bottom:4px">🔍 Deep-Dive: Single Product Analysis</div>
+    <div style="font-size:0.8rem;color:var(--text3)">Select a product and time range — charts and AI forecast load automatically</div>
+  </div>
+
+  <!-- Controls (just 2 selects) -->
+  <div class="panel" style="margin-bottom:18px">
+    <div class="panel-body">
+      <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="flex:2;min-width:200px;margin:0">
+          <label class="form-label" style="margin-bottom:6px">Select Product</label>
+          <select id="productSelect" class="form-control form-select" onchange="onProductChange()">
+            <option value="">— Pick a product to analyse —</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1;min-width:200px;margin:0">
+          <label class="form-label" style="margin-bottom:6px">Time Range (Sales Data)</label>
+          <select id="daysSelect" class="form-control form-select" onchange="onProductChange()">
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="60">Last 60 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1;min-width:180px;margin:0">
+          <label class="form-label" style="margin-bottom:6px">Forecast Horizon</label>
+          <select id="horizonSelect" class="form-control form-select">
+            <option value="7">Next 7 days</option>
+            <option value="14" selected>Next 14 days</option>
+            <option value="21">Next 21 days</option>
+            <option value="30">Next 30 days</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1;min-width:180px;margin:0">
+          <label class="form-label" style="margin-bottom:6px">Forecast Model</label>
+          <select id="modelSel" class="form-control form-select">
+            <option value="ema" selected>📊 EMA (Exponential Moving Avg)</option>
+            <option value="sma">📉 SMA (Simple Moving Avg)</option>
+            <option value="wma">⚖️ WMA (Weighted Moving Avg)</option>
+            <option value="holt">📈 Holt's Double Exponential</option>
+            <option value="linear">📐 Linear Regression</option>
+            <option value="naive">🔁 Seasonal Naive</option>
+          </select>
+        </div>
+        <div style="flex-shrink:0;padding-bottom:1px">
+          <button class="btn btn-primary" onclick="onProductChange()" id="analyzeBtn">Analyse →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div id="emptyState" style="text-align:center;padding:48px 24px;color:var(--text3)">
+    <div style="font-size:2.8rem;margin-bottom:12px">🔮</div>
+    <div style="font-size:0.92rem;font-weight:600;color:var(--text2);margin-bottom:5px">Select a product above</div>
+    <div style="font-size:0.82rem">Charts and AI forecast will appear here automatically</div>
+  </div>
+
+  <!-- Results area -->
+  <div id="resultsArea" style="display:none">
+
+    <!-- Notifications for this product -->
+    <div id="notificationsArea" style="margin-bottom:16px"></div>
+
+    <!-- Key Numbers -->
+    <div class="stats-row" style="margin-bottom:18px">
+      <div class="stat-card">
+        <div class="stat-icon blue">📦</div>
+        <div><div class="stat-num" id="kCurrentStock">—</div><div class="stat-lbl">Current Stock</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">📈</div>
+        <div><div class="stat-num" id="kAvgDaily">—</div><div class="stat-lbl">Avg Sales/Day</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber">⏳</div>
+        <div><div class="stat-num" id="kDaysLeft">—</div><div class="stat-lbl">Days of Stock Left</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple">🛒</div>
+        <div><div class="stat-num" id="kSuggestedQty">—</div><div class="stat-lbl">Suggested Order Qty</div></div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">📊 Sales History</div>
+            <div class="panel-sub" id="chartSubtitle">Units sold per day</div>
+          </div>
+        </div>
+        <div class="panel-body" style="position:relative;height:220px">
+          <canvas id="salesChart"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">🔮 Next 14-Day Forecast</div>
+            <div class="panel-sub">AI prediction based on your sales pattern</div>
+          </div>
+        </div>
+        <div class="panel-body" style="position:relative;height:220px">
+          <div id="noForecastMsg" style="display:none;text-align:center;padding:40px;color:var(--text3);font-size:0.83rem">
+            Not enough sales data to forecast yet.<br>Record some sales first.
+          </div>
+          <canvas id="forecastChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let salesChartInst    = null;
+let forecastChartInst = null;
+
+// ── On Load ───────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadOverallAlerts();
+  loadProductDropdown();
+});
+
+// ══════════════════════════════════════════════
+// SECTION 1 — Overall Alerts
+// ══════════════════════════════════════════════
+async function loadOverallAlerts() {
+  const area = document.getElementById('overallAlerts');
+  area.innerHTML = `<div style="text-align:center;padding:28px;color:var(--text3);font-size:0.84rem">⏳ Scanning inventory...</div>`;
+
+  try {
+    const r = await fetch('/api/reorder-advisor', { credentials: 'same-origin' });
+    const d = await r.json();
+    const items = d.items || [];
+
+    if (!items.length) {
+      area.innerHTML = `<div style="text-align:center;padding:28px;color:var(--text3);font-size:0.84rem">
+        No products yet. <a href="/stock" style="color:var(--accent-l)">Add products →</a></div>`;
+      return;
+    }
+
+    // Summary badges
+    const counts = { critical:0, warning:0, soon:0, ok:0 };
+    items.forEach(i => counts[i.urgency] = (counts[i.urgency]||0) + 1);
+    const badgeEl = document.getElementById('alertSummaryBadges');
+    badgeEl.innerHTML = [
+      counts.critical > 0 ? `<span class="badge badge-red">🚨 ${counts.critical} Critical</span>`  : '',
+      counts.warning  > 0 ? `<span class="badge badge-amber">⚠️ ${counts.warning} Warning</span>` : '',
+      counts.soon     > 0 ? `<span class="badge badge-blue">📅 ${counts.soon} Soon</span>`         : '',
+      counts.ok       > 0 ? `<span class="badge badge-green">✅ ${counts.ok} Healthy</span>`       : '',
+    ].join('');
+
+    // Generate plain-English sentence for every product
+    const sentences = items.map(item => {
+      let text, level, icon;
+      if (item.urgency === 'critical' && parseFloat(item.current_stock) <= 0) {
+        text  = `Your stock of <strong>${esc(item.name)}</strong> is completely empty. Stop selling and restock immediately.`;
+        level = 'critical'; icon = '🚨';
+      } else if (item.urgency === 'critical') {
+        text  = `Your stock of <strong>${esc(item.name)}</strong> will last only <strong>${item.days_left} day${item.days_left===1?'':'s'}</strong>. Order NOW before you run out.`;
+        level = 'critical'; icon = '🚨';
+      } else if (item.urgency === 'warning' && item.days_left !== null) {
+        text  = `Your stock of <strong>${esc(item.name)}</strong> has only <strong>${item.days_left} days</strong> left. Place an order this week.`;
+        level = 'warning'; icon = '⚠️';
+      } else if (item.urgency === 'warning') {
+        text  = `<strong>${esc(item.name)}</strong> stock is below minimum level (${fmtQty(item.current_stock)} ${esc(item.unit)}). Consider restocking.`;
+        level = 'warning'; icon = '⚠️';
+      } else if (item.urgency === 'soon') {
+        text  = `<strong>${esc(item.name)}</strong> will last about <strong>${item.days_left} days</strong>. Plan your next order soon.`;
+        level = 'soon'; icon = '📅';
+      } else {
+        text  = item.days_left !== null
+          ? `<strong>${esc(item.name)}</strong> is fine — about <strong>${item.days_left} days</strong> of stock remaining.`
+          : `<strong>${esc(item.name)}</strong> — no sales data yet. Start selling to get predictions.`;
+        level = 'ok'; icon = '✅';
+      }
+      return { text, level, icon };
+    });
+
+    const colors = {
+      critical: { bg:'rgba(239,68,68,0.08)',   border:'rgba(239,68,68,0.25)',   text:'#fca5a5' },
+      warning:  { bg:'rgba(245,158,11,0.08)',  border:'rgba(245,158,11,0.25)',  text:'#fcd34d' },
+      soon:     { bg:'rgba(99,102,241,0.08)',  border:'rgba(99,102,241,0.2)',   text:'#a5b4fc' },
+      ok:       { bg:'rgba(16,185,129,0.06)',  border:'rgba(16,185,129,0.15)',  text:'#6ee7b7' },
+    };
+
+    area.innerHTML = sentences.map(s => {
+      const c = colors[s.level] || colors.ok;
+      return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:10px;
+        padding:12px 18px;margin-bottom:9px;display:flex;align-items:center;gap:12px;
+        font-size:0.86rem;color:${c.text};line-height:1.55">
+        <span style="font-size:1.15rem;flex-shrink:0">${s.icon}</span>
+        <span>${s.text}</span>
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    area.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3)">Failed to load alerts</div>`;
+  }
+}
+
+// ══════════════════════════════════════════════
+// SECTION 2 — Single Product Analysis
+// ══════════════════════════════════════════════
+async function loadProductDropdown() {
+  try {
+    const r = await fetch('/api/products', { credentials: 'same-origin' });
+    const d = await r.json();
+    const sel = document.getElementById('productSelect');
+    (d.products || []).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value       = p.id;
+      opt.textContent = `${p.name}  (${fmtQty(p.current_stock)} ${p.unit} in stock)`;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+async function onProductChange() {
+  const pid  = document.getElementById('productSelect').value;
+  const days = document.getElementById('daysSelect').value;
+  if (!pid) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.textContent = 'Loading...'; btn.disabled = true;
+  document.getElementById('emptyState').style.display  = 'none';
+  document.getElementById('resultsArea').style.display = 'none';
+
+  try {
+    const r = await fetch(`/api/product-analysis/${pid}?days=${days}`, { credentials:'same-origin' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    renderProductResults(d);
+    document.getElementById('resultsArea').style.display = 'block';
+  } catch(e) {
+    showToast(e.message, 'error');
+    document.getElementById('emptyState').style.display = 'block';
+  } finally {
+    btn.textContent = 'Analyse →'; btn.disabled = false;
+  }
+}
+
+function renderProductResults(d) {
+  const p    = d.product;
+  const unit = p.unit;
+
+  // Per-product notification sentences
+  const lStyle = {
+    critical:{ bg:'rgba(239,68,68,0.1)',   border:'rgba(239,68,68,0.3)',   col:'#fca5a5' },
+    warning: { bg:'rgba(245,158,11,0.1)',  border:'rgba(245,158,11,0.3)',  col:'#fcd34d' },
+    ok:      { bg:'rgba(16,185,129,0.1)',  border:'rgba(16,185,129,0.3)',  col:'#6ee7b7' },
+    info:    { bg:'rgba(99,102,241,0.08)', border:'rgba(99,102,241,0.2)', col:'#a5b4fc' },
+  };
+  document.getElementById('notificationsArea').innerHTML =
+    (d.notifications || []).map(n => {
+      const s = lStyle[n.level] || lStyle.info;
+      return `<div style="background:${s.bg};border:1px solid ${s.border};border-radius:10px;
+        padding:12px 18px;margin-bottom:9px;display:flex;align-items:center;gap:12px;
+        font-size:0.86rem;color:${s.col};font-weight:500;line-height:1.5">
+        <span style="font-size:1.1rem;flex-shrink:0">${n.icon}</span>
+        <span>${esc(n.text)}</span>
+      </div>`;
+    }).join('');
+
+  // Key numbers
+  const set = (id, v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+  set('kCurrentStock',  `${fmtQty(p.current_stock)} ${unit}`);
+  set('kAvgDaily',      d.avg_daily > 0 ? `${d.avg_daily} ${unit}` : '—');
+  set('kDaysLeft',      d.days_left !== null ? `${d.days_left} days` : '—');
+  set('kSuggestedQty',  d.suggested_qty > 0 ? `${d.suggested_qty} ${unit}` : '—');
+  set('chartSubtitle',  `Last ${d.period_days} days · total sold: ${d.total_sold} ${unit}`);
+
+  // Sales bar chart
+  if (salesChartInst) salesChartInst.destroy();
+  salesChartInst = new Chart(document.getElementById('salesChart').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels: d.labels,
+      datasets:[{ label:`${unit}/day`, data:d.sales_series,
+        backgroundColor: d.sales_series.map(v => v===0?'rgba(100,116,139,0.15)':'rgba(37,99,235,0.7)'),
+        borderRadius:4 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ ticks:{ color:'#475569', font:{size:9}, maxRotation:45 }, grid:{ display:false } },
+        y:{ ticks:{ color:'#475569', font:{size:10} }, grid:{ color:'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+
+  // Forecast line chart
+  if (forecastChartInst) forecastChartInst.destroy();
+  const noMsg = document.getElementById('noForecastMsg');
+  const fCtx  = document.getElementById('forecastChart');
+  if (!d.forecast_series || !d.forecast_series.length) {
+    noMsg.style.display = 'block'; fCtx.style.display = 'none'; return;
+  }
+  noMsg.style.display = 'none'; fCtx.style.display = 'block';
+  forecastChartInst = new Chart(fCtx.getContext('2d'), {
+    type:'line',
+    data:{
+      labels: d.forecast_series.map((_,i)=>`Day +${i+1}`),
+      datasets:[{ label:`Predicted ${unit}/day`, data:d.forecast_series,
+        borderColor:'#8b5cf6', backgroundColor:'rgba(139,92,246,0.12)',
+        tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#8b5cf6' }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11} } } },
+      scales:{
+        x:{ ticks:{ color:'#475569', font:{size:10} }, grid:{ display:false } },
+        y:{ ticks:{ color:'#475569', font:{size:10} }, grid:{ color:'rgba(255,255,255,0.04)' }, beginAtZero:true }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

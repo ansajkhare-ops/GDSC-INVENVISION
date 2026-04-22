@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}Analytics — InvenVision Pro{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div class="page-title-wrap">
+    <div class="page-title">📊 Analytics</div>
+    <div class="page-subtitle">Sales performance, revenue trends, and inventory health</div>
+  </div>
+  <div class="page-actions">
+    <div style="display:flex;gap:8px;align-items:center">
+      <label class="form-label" style="margin:0;white-space:nowrap;color:var(--text3);font-size:0.78rem">View:</label>
+      <select id="chartViewSel" class="form-control form-select" style="width:130px;padding:6px 10px" onchange="switchView(this.value)">
+        <option value="daily">Last 30 Days</option>
+        <option value="weekly">Last 12 Weeks</option>
+      </select>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadAnalytics()">↻ Refresh</button>
+  </div>
+</header>
+
+<div class="page-body">
+
+  <!-- ── STATS ROW ── -->
+  <div class="stats-row" style="margin-bottom:18px">
+    <div class="stat-card"><div class="stat-icon green">💰</div>
+      <div><div class="stat-num" id="aRevenue">—</div><div class="stat-lbl">Total Revenue (₹)</div></div></div>
+    <div class="stat-card"><div class="stat-icon blue">🧾</div>
+      <div><div class="stat-num" id="aInvoices">—</div><div class="stat-lbl">Total Invoices</div></div></div>
+    <div class="stat-card"><div class="stat-icon purple">📦</div>
+      <div><div class="stat-num" id="aProducts">—</div><div class="stat-lbl">Total Products</div></div></div>
+    <div class="stat-card"><div class="stat-icon amber">⚠️</div>
+      <div><div class="stat-num" id="aLowStock">—</div><div class="stat-lbl">Low Stock Items</div></div></div>
+    <div class="stat-card"><div class="stat-icon green">📅</div>
+      <div><div class="stat-num" id="aTodayRev">—</div><div class="stat-lbl">Today's Revenue</div></div></div>
+    <div class="stat-card"><div class="stat-icon blue">🛍️</div>
+      <div><div class="stat-num" id="aTodayInv">—</div><div class="stat-lbl">Today's Sales</div></div></div>
+  </div>
+
+  <!-- ── MAIN REVENUE CHART ── -->
+  <div class="panel" style="margin-bottom:18px">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title" id="revenueChartTitle">📈 Daily Revenue — Last 30 Days</div>
+        <div class="panel-sub">Total revenue earned each day from all invoices</div>
+      </div>
+    </div>
+    <div class="panel-body" style="position:relative;height:260px">
+      <canvas id="revenueChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── INVOICES CHART ── -->
+  <div class="panel" style="margin-bottom:18px">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title" id="invoiceChartTitle">🧾 Daily Invoices — Last 30 Days</div>
+        <div class="panel-sub">Number of sales transactions per day</div>
+      </div>
+    </div>
+    <div class="panel-body" style="position:relative;height:200px">
+      <canvas id="invoiceChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── TOP PRODUCTS + CATEGORY ── -->
+  <div class="two-col" style="margin-bottom:18px">
+
+    <!-- Top Products bar chart -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">🏆 Top Products by Units Sold</div>
+        <div class="panel-sub">All time</div>
+      </div>
+      <div class="panel-body" style="position:relative;height:240px">
+        <div id="noTopProducts" style="display:none;text-align:center;padding:50px;color:var(--text3);font-size:0.84rem">
+          No sales data yet. Make some sales to see this chart.
+        </div>
+        <canvas id="topProductsChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Category Revenue donut -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">🗂️ Revenue by Category</div>
+        <div class="panel-sub">Which category earns the most</div>
+      </div>
+      <div class="panel-body" style="position:relative;height:240px;display:flex;align-items:center;justify-content:center">
+        <div id="noCategoryData" style="display:none;text-align:center;padding:50px;color:var(--text3);font-size:0.84rem">
+          No data yet.
+        </div>
+        <canvas id="categoryChart" style="max-height:240px"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TOP PRODUCTS TABLE + LOW STOCK ── -->
+  <div class="two-col">
+
+    <!-- Top products table -->
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">📋 Top Products — Detailed</div></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Product</th><th>Units Sold</th><th>Revenue (₹)</th></tr></thead>
+          <tbody id="topProductsTbody"><tr><td colspan="4" class="tbl-empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Low stock alerts -->
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">🔴 Low Stock Alerts</div></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Product</th><th>Current</th><th>Minimum</th><th>Status</th></tr></thead>
+          <tbody id="lowStockTbody"><tr><td colspan="4" class="tbl-empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let revenueChartInst  = null;
+let invoiceChartInst  = null;
+let topChartInst      = null;
+let categoryChartInst = null;
+let chartData         = null;
+let currentView       = 'daily';
+
+document.addEventListener('DOMContentLoaded', loadAnalytics);
+
+async function loadAnalytics() {
+  try {
+    const [chartsRes, stockRes] = await Promise.all([
+      fetch('/api/analytics-charts', { credentials: 'same-origin' }),
+      fetch('/api/products', { credentials: 'same-origin' }),
+    ]);
+    chartData          = await chartsRes.json();
+    const stockData    = await stockRes.json();
+
+    if (chartData.error) throw new Error(chartData.error);
+
+    // Stats
+    const s = chartData.stats;
+    const set = (id, v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+    set('aRevenue',   '₹' + fmt(s.total_revenue));
+    set('aInvoices',  s.total_invoices);
+    set('aProducts',  s.total_products);
+    set('aLowStock',  s.low_stock);
+    set('aTodayRev',  '₹' + fmt(s.today_revenue));
+    set('aTodayInv',  s.today_invoices + ' bills');
+
+    switchView(currentView);
+    renderTopProductsTable(chartData.top_products);
+    renderTopProductsChart(chartData.top_products);
+    renderCategoryChart(chartData.categories);
+    renderLowStock(stockData.products || []);
+  } catch(e) {
+    showToast('Failed to load analytics: ' + e.message, 'error');
+  }
+}
+
+function switchView(view) {
+  currentView = view;
+  document.getElementById('chartViewSel').value = view;
+  if (!chartData) return;
+  if (view === 'daily') {
+    renderRevenueChart(chartData.daily.labels, chartData.daily.revenue, 'Daily Revenue (₹)');
+    renderInvoiceChart(chartData.daily.labels, chartData.daily.invoices, 'Invoices per Day');
+    document.getElementById('revenueChartTitle').textContent = '📈 Daily Revenue — Last 30 Days';
+    document.getElementById('invoiceChartTitle').textContent = '🧾 Daily Invoices — Last 30 Days';
+  } else {
+    renderRevenueChart(chartData.weekly.labels, chartData.weekly.revenue, 'Weekly Revenue (₹)');
+    renderInvoiceChart(chartData.weekly.labels, chartData.weekly.revenue.map(()=>0), 'Weekly Sales');
+    document.getElementById('revenueChartTitle').textContent = '📈 Weekly Revenue — Last 12 Weeks';
+    document.getElementById('invoiceChartTitle').textContent = '🧾 Weekly Revenue Trend — Last 12 Weeks';
+  }
+}
+
+// ── Revenue Chart (Area) ──────────────────────
+function renderRevenueChart(labels, data, label) {
+  if (revenueChartInst) revenueChartInst.destroy();
+  revenueChartInst = new Chart(document.getElementById('revenueChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.12)',
+        tension: 0.4, fill: true, pointRadius: 3,
+        pointBackgroundColor: '#2563eb',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `  ₹${ctx.parsed.y.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#475569', font: { size: 9 }, maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#475569', font: { size: 10 },
+          callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v) },
+          grid: { color: 'rgba(255,255,255,0.04)' } },
+      }
+    }
+  });
+}
+
+// ── Invoice Count Chart (Bar) ─────────────────
+function renderInvoiceChart(labels, data, label) {
+  if (invoiceChartInst) invoiceChartInst.destroy();
+  invoiceChartInst = new Chart(document.getElementById('invoiceChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data,
+        backgroundColor: data.map(v => v === 0 ? 'rgba(100,116,139,0.15)' : 'rgba(139,92,246,0.7)'),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#475569', font: { size: 9 }, maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+      }
+    }
+  });
+}
+
+// ── Top Products Bar Chart ────────────────────
+function renderTopProductsChart(top) {
+  if (!top.labels.length) {
+    document.getElementById('noTopProducts').style.display = 'block';
+    document.getElementById('topProductsChart').style.display = 'none';
+    return;
+  }
+  if (topChartInst) topChartInst.destroy();
+  const colors = ['#2563eb','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16'];
+  topChartInst = new Chart(document.getElementById('topProductsChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: top.labels,
+      datasets: [{ label: 'Units Sold', data: top.units,
+        backgroundColor: top.labels.map((_, i) => colors[i % colors.length] + 'cc'),
+        borderRadius: 5 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+      }
+    }
+  });
+}
+
+// ── Category Donut Chart ──────────────────────
+function renderCategoryChart(cat) {
+  if (!cat.labels.length) {
+    document.getElementById('noCategoryData').style.display = 'block';
+    document.getElementById('categoryChart').style.display = 'none';
+    return;
+  }
+  if (categoryChartInst) categoryChartInst.destroy();
+  const colors = ['#2563eb','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16'];
+  categoryChartInst = new Chart(document.getElementById('categoryChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: cat.labels,
+      datasets: [{ data: cat.revenue,
+        backgroundColor: colors.slice(0, cat.labels.length),
+        borderWidth: 2, borderColor: '#0f172a' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ₹${fmt(ctx.parsed)}` } }
+      }
+    }
+  });
+}
+
+// ── Top Products Table ────────────────────────
+function renderTopProductsTable(top) {
+  const tbody = document.getElementById('topProductsTbody');
+  if (!top.labels.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="tbl-empty">No sales data yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = top.labels.map((name, i) => `<tr>
+    <td class="bold">${i + 1}</td>
+    <td class="bold">${esc(name)}</td>
+    <td>${fmtQty(top.units[i])}</td>
+    <td class="bold" style="color:var(--green)">₹${fmt(top.revenue[i])}</td>
+  </tr>`).join('');
+}
+
+// ── Low Stock Table ───────────────────────────
+function renderLowStock(products) {
+  const tbody  = document.getElementById('lowStockTbody');
+  const alerts = products.filter(p =>
+    parseFloat(p.current_stock || 0) <= parseFloat(p.min_stock || 0) && parseFloat(p.min_stock || 0) > 0
+  );
+  if (!alerts.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="tbl-empty" style="color:var(--green)">✅ All stock levels healthy!</td></tr>';
+    return;
+  }
+  tbody.innerHTML = alerts.map(p => {
+    const curr = parseFloat(p.current_stock || 0);
+    const min  = parseFloat(p.min_stock || 0);
+    const badge = curr <= 0
+      ? '<span class="badge badge-red">🚨 Out of Stock</span>'
+      : '<span class="badge badge-amber">⚠️ Low Stock</span>';
+    return `<tr>
+      <td class="bold">${esc(p.name)}</td>
+      <td style="color:${curr<=0?'var(--red)':'var(--amber)'};font-weight:700">${fmtQty(curr)} ${esc(p.unit)}</td>
+      <td>${fmtQty(min)} ${esc(p.unit)}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+{% endblock %}

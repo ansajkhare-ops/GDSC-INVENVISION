@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{% block title %}InvenVision Pro{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='pro.css') }}"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- ═══ SIDEBAR ═══════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon-box">📦</div>
+        <div>
+          <div class="logo-name">InvenVision</div>
+          <div class="logo-sub">Pro Inventory</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="/advisor" class="nav-link {% if active=='advisor' %}active{% endif %}" style="{% if active!='advisor' %}background:rgba(37,99,235,0.05);{% endif %}">
+        <span class="nav-icon">🛒</span><span>Reorder Advisor</span>
+      </a>
+      <a href="/stock" class="nav-link {% if active=='stock' %}active{% endif %}">
+        <span class="nav-icon">🏪</span><span>Stock Manager</span>
+        <span class="nav-badge" id="lowStockBadge" style="display:none">!</span>
+      </a>
+      <a href="/sales" class="nav-link {% if active=='sales' %}active{% endif %}">
+        <span class="nav-icon">🧾</span><span>Sales & Invoice</span>
+      </a>
+      <a href="/customers" class="nav-link {% if active=='customers' %}active{% endif %}">
+        <span class="nav-icon">👥</span><span>Customer Khata</span>
+      </a>
+
+      <div class="nav-section-label">Insights</div>
+      <a href="/analytics" class="nav-link {% if active=='analytics' %}active{% endif %}">
+        <span class="nav-icon">📊</span><span>Analytics</span>
+      </a>
+      <a href="/forecast" class="nav-link {% if active=='forecast' %}active{% endif %}">
+        <span class="nav-icon">🔮</span><span>AI Forecast</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <img src="{{ user.picture }}" alt="" class="user-avatar" onerror="this.src='https://ui-avatars.com/api/?name={{ user.name }}&background=2563eb&color=fff'"/>
+        <div class="user-details">
+          <div class="user-name">{{ user.given_name or user.name or 'Owner' }}</div>
+          <div class="user-role">Store Owner</div>
+        </div>
+        <a href="/logout" class="logout-link" title="Logout">⎋</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ PAGE CONTENT ══════════════════════════ -->
+  <div class="page-wrap">
+    {% block content %}{% endblock %}
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script>
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.className = `toast t-${type}`;
+  t.innerHTML = (type==='success'?'✅ ':'❌ ') + msg;
+  setTimeout(()=>t.classList.add('hidden'), 3200);
+}
+function esc(s){ const d=document.createElement('div'); d.textContent=String(s??''); return d.innerHTML; }
+function fmt(n){ const v=parseFloat(n); return isNaN(v)?'0.00':v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtQty(n){ const v=parseFloat(n); return isNaN(v)?0:v; }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

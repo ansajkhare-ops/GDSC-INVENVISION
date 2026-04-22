@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Reorder Advisor — InvenVision Pro{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div class="page-title-wrap">
+    <div class="page-title">🛒 Reorder Advisor</div>
+    <div class="page-subtitle">Automatic — no manual input needed. Based on your actual sales.</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-ghost btn-sm" onclick="loadAdvisor()">↻ Refresh</button>
+  </div>
+</header>
+
+<div class="page-body">
+
+  <!-- How it works — simple banner -->
+  <div style="background:rgba(37,99,235,0.07);border:1px solid rgba(37,99,235,0.2);border-radius:12px;padding:14px 20px;margin-bottom:22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="font-size:1.6rem">🧠</div>
+    <div>
+      <div style="font-weight:600;color:var(--text1);font-size:0.9rem">How does this work?</div>
+      <div style="color:var(--text3);font-size:0.8rem;margin-top:2px">
+        Every time you make a sale → the system learns. After a few sales, it automatically calculates:
+        <strong style="color:var(--accent-l)">average daily sales → days of stock left → when to order → how much to order.</strong>
+        You don't type anything here.
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary strip -->
+  <div class="stats-row" id="advisorStats" style="margin-bottom:22px">
+    <div class="stat-card"><div class="stat-icon red">🚨</div><div><div class="stat-num" id="aCritical">—</div><div class="stat-lbl">Order Immediately</div></div></div>
+    <div class="stat-card"><div class="stat-icon amber">⚠️</div><div><div class="stat-num" id="aWarning">—</div><div class="stat-lbl">Order This Week</div></div></div>
+    <div class="stat-card"><div class="stat-icon blue">📅</div><div><div class="stat-num" id="aSoon">—</div><div class="stat-lbl">Order Within 2 Weeks</div></div></div>
+    <div class="stat-card"><div class="stat-icon green">✅</div><div><div class="stat-num" id="aOk">—</div><div class="stat-lbl">Stock is Fine</div></div></div>
+  </div>
+
+  <!-- Main Table -->
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">📦 What Should You Order?</div>
+        <div class="panel-sub">Sorted by urgency — most urgent at top</div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>You Have Now</th>
+            <th>Selling Per Day</th>
+            <th>Days Left</th>
+            <th>Order How Much?</th>
+            <th>Urgency</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="advisorTbody">
+          <tr><td colspan="7" class="tbl-empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- No sales data message -->
+  <div id="noSalesMsg" style="display:none;margin-top:16px">
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:12px;padding:18px 22px">
+      <div style="font-weight:600;color:var(--amber);margin-bottom:6px">💡 No sales data yet for some products</div>
+      <div style="color:var(--text3);font-size:0.84rem">
+        Start recording sales in <a href="/sales" style="color:var(--accent-l)">Sales & Invoice</a>.
+        After a few days of sales, the system will automatically predict reorder quantities for those products.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Restock Modal (quick reorder) -->
+<div class="modal-overlay" id="quickRestockModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">📥 Place Restock Order</div>
+      <button class="modal-close" onclick="closeModal('quickRestockModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="qrProductId"/>
+      <div style="background:rgba(37,99,235,0.08);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+        <div style="font-weight:700;color:var(--text1)" id="qrProductName">—</div>
+        <div style="font-size:0.8rem;color:var(--text3);margin-top:3px" id="qrProductMeta">—</div>
+      </div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label class="form-label">Quantity to Order</label>
+          <input id="qrQty" class="form-control" type="number" min="1"/>
+          <div class="form-hint" id="qrQtyHint"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Buying Price (₹/unit)</label>
+          <input id="qrPrice" class="form-control" type="number" step="0.01" placeholder="0.00"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Supplier</label>
+          <input id="qrSupplier" class="form-control" placeholder="Supplier name"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expiry Date</label>
+          <input id="qrExpiry" class="form-control" type="date"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('quickRestockModal')">Cancel</button>
+      <button class="btn btn-success" onclick="confirmRestock()">📥 Confirm Order Received</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='advisor.js') }}"></script>
+{% endblock %}
