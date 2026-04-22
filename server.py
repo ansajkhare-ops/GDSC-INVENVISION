@@ -959,17 +959,17 @@ def get_products():
         return jsonify({'products': []})
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             if search:
                 cur.execute("""
                     SELECT * FROM products WHERE user_email=%s
-                    AND (name LIKE %s OR category LIKE %s OR description LIKE %s)
+                    AND (name ILIKE %s OR category ILIKE %s OR description ILIKE %s)
                     ORDER BY name
                 """, (email, f'%{search}%', f'%{search}%', f'%{search}%'))
             else:
                 cur.execute("SELECT * FROM products WHERE user_email=%s ORDER BY name", (email,))
             products = cur.fetchall()
-        return jsonify({'products': products})
+        return jsonify({'products': list(products)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -993,6 +993,14 @@ def add_product():
                   (user_email,name,category,unit,buying_price,selling_price,
                    current_stock,min_stock,description)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (user_email, name) DO UPDATE SET
+                  category      = EXCLUDED.category,
+                  unit          = EXCLUDED.unit,
+                  buying_price  = EXCLUDED.buying_price,
+                  selling_price = EXCLUDED.selling_price,
+                  min_stock     = EXCLUDED.min_stock,
+                  description   = EXCLUDED.description
+                RETURNING id
             """, (email, name,
                   body.get('category','General'), body.get('unit','pcs'),
                   float(body.get('buying_price',0) or 0),
@@ -1000,7 +1008,7 @@ def add_product():
                   init_stock,
                   float(body.get('min_stock',10) or 10),
                   body.get('description','')))
-            pid = cur.lastrowid
+            pid = cur.fetchone()[0]
             if init_stock > 0:
                 cur.execute("""
                     INSERT INTO stock_in (user_email,product_id,product_name,quantity,buying_price,note)
