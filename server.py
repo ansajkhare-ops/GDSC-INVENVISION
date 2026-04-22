@@ -269,8 +269,10 @@ def auth_google_callback():
                         cur.execute("""
                             INSERT INTO users (email, name, picture)
                             VALUES (%s, %s, %s)
-                            ON DUPLICATE KEY UPDATE
-                                name=VALUES(name), picture=VALUES(picture), last_login=NOW()
+                            ON CONFLICT (email) DO UPDATE SET
+                                name=EXCLUDED.name,
+                                picture=EXCLUDED.picture,
+                                last_login=NOW()
                         """, (user['email'], user['name'], user['picture']))
                 except Exception as e:
                     print(f'[DB] User upsert error: {e}')
@@ -1075,7 +1077,7 @@ def stock_in():
         return jsonify({'error': 'Invalid product or quantity'}), 400
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             cur.execute("SELECT * FROM products WHERE id=%s AND user_email=%s", (pid, email))
             p = cur.fetchone()
             if not p:
@@ -1104,7 +1106,7 @@ def stock_history():
         return jsonify({'items': []})
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             cur.execute("""
                 SELECT 'in' as type, product_name, quantity, buying_price as price,
                        supplier as note, created_at
@@ -1147,9 +1149,9 @@ def get_customers():
         return jsonify({'customers': []})
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             cur.execute("SELECT * FROM customers WHERE user_email=%s ORDER BY name", (email,))
-            return jsonify({'customers': cur.fetchall()})
+            return jsonify({'customers': list(cur.fetchall())})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1294,13 +1296,14 @@ def create_invoice():
                   (user_email,invoice_no,customer_name,customer_phone,
                    subtotal,discount,tax_pct,tax_amount,total,payment_mode,status)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'paid')
+                RETURNING id
             """, (email, inv_no,
                   body.get('customer_name','Walk-in'),
                   body.get('customer_phone',''),
                   float(body.get('subtotal',0)), float(body.get('discount',0)),
                   float(body.get('tax_pct',0)), float(body.get('tax_amount',0)),
                   float(body.get('total',0)), body.get('payment_mode','Cash')))
-            inv_id = cur.lastrowid
+            inv_id = cur.fetchone()[0]
             # Insert items & reduce stock
             for it in items:
                 cur.execute("""
@@ -1327,7 +1330,7 @@ def get_invoices():
         return jsonify({'invoices': []})
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             cur.execute("""
                 SELECT i.*, COUNT(ii.id) as item_count
                 FROM invoices i
@@ -1336,7 +1339,7 @@ def get_invoices():
                 GROUP BY i.id
                 ORDER BY i.created_at DESC
             """, (email,))
-            invoices = cur.fetchall()
+            invoices = list(cur.fetchall())
             for inv in invoices:
                 if hasattr(inv.get('created_at'), 'strftime'):
                     inv['created_at'] = inv['created_at'].strftime('%Y-%m-%d %H:%M:%S')
@@ -1353,13 +1356,13 @@ def get_invoice(inv_id):
         return jsonify({'error': 'DB not available'}), 503
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             cur.execute("SELECT * FROM invoices WHERE id=%s AND user_email=%s", (inv_id, email))
-            inv = cur.fetchone()
+            inv = dict(cur.fetchone()) if cur.fetchone() else None
             if not inv:
                 return jsonify({'error': 'Not found'}), 404
             cur.execute("SELECT * FROM invoice_items WHERE invoice_id=%s", (inv_id,))
-            inv['items'] = cur.fetchall()
+            inv['items'] = list(cur.fetchall())
             if hasattr(inv.get('created_at'), 'strftime'):
                 inv['created_at'] = inv['created_at'].strftime('%Y-%m-%d %H:%M:%S')
         return jsonify(inv)
