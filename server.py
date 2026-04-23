@@ -887,19 +887,21 @@ def reorder_advisor():
 def product_analysis(pid):
     """Fully automatic analysis — reads sales from DB, returns plain English notifications."""
     from datetime import date, timedelta
-    email = session['user']['email']
-    days  = max(1, int(request.args.get('days', 30)))
+    email      = session['user']['email']
+    days       = max(1, int(request.args.get('days', 30)))
+    model_key  = request.args.get('model', 'ema')
     if not _db_available:
         return jsonify({'error': 'DB not available'}), 503
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             # Get product info
             cur.execute("SELECT * FROM products WHERE id=%s AND user_email=%s", (pid, email))
             p = cur.fetchone()
             if not p:
                 return jsonify({'error': 'Product not found'}), 404
 
+            p = dict(p)  # ensure plain dict
             current_stock = float(p['current_stock'] or 0)
             min_stock     = float(p['min_stock'] or 0)
             unit          = p['unit']
@@ -918,7 +920,7 @@ def product_analysis(pid):
                 GROUP BY DATE(i.created_at)
                 ORDER BY sale_date ASC
             """, (email, pid, since))
-            daily_rows = cur.fetchall()
+            daily_rows = list(cur.fetchall())
 
             # Build date-filled array (0 for days with no sales)
             date_map = {}
@@ -933,17 +935,12 @@ def product_analysis(pid):
 
             labels = [(since + timedelta(days=i+1)).strftime('%d %b') for i in range(days)]
 
-            total_sold    = sum(sales_series)
+            total_sold     = sum(sales_series)
             days_with_data = sum(1 for x in sales_series if x > 0)
             avg_daily      = round(total_sold / max(days_with_data, 1), 1) if total_sold > 0 else 0
 
             # Days of stock remaining
-            if avg_daily > 0:
-                days_left = round(current_stock / avg_daily)
-            else:
-                days_left = None
-
-            # Suggested order qty (30-day supply + 20% buffer)
+            days_left     = round(current_stock / avg_daily) if avg_daily > 0 else None
             suggested_qty = round(avg_daily * 30 * 1.2) if avg_daily > 0 else 0
 
             # ── Plain English Notifications ───────────────
@@ -980,35 +977,43 @@ def product_analysis(pid):
                 notifications.append({'level': 'warning', 'icon': '⚠️',
                     'text': f'Stock ({current_stock} {unit}) is below your minimum level ({min_stock} {unit}). Restock needed.'})
 
-            # Forecast next 14 days using EMA
+            # ── AI Forecast using selected model ──────────
             forecast_series = []
-            if sales_series and avg_daily > 0:
-                alpha = 0.3
-                ema = avg_daily
-                for v in sales_series:
-                    if v > 0:
-                        ema = alpha * v + (1 - alpha) * ema
-                for _ in range(14):
-                    forecast_series.append(round(ema, 1))
+            auto_selected   = None
+            model_name      = MODEL_NAMES.get(model_key, 'EMA')
+            non_zero        = [v for v in sales_series if v > 0]
+
+            if len(non_zero) >= 2:
+                data_for_model = non_zero
+                if model_key == 'auto':
+                    auto_selected, forecast_fn = auto_select_model(data_for_model)
+                    model_name = MODEL_NAMES.get(auto_selected, '')
+                else:
+                    forecast_fn = MODELS.get(model_key, exponential_moving_average)
+                raw = forecast_fn(data_for_model)
+                forecast_series = [round(v, 1) for v in raw[:14]]
 
         return jsonify({
-            'product':         {'id': pid, 'name': name, 'unit': unit, 'category': p['category'],
+            'product':         {'id': pid, 'name': name, 'unit': unit,
+                                'category': p['category'],
                                 'current_stock': current_stock, 'min_stock': min_stock},
             'period_days':     days,
-            'total_sold':      total_sold,
+            'total_sold':      round(total_sold, 2),
             'avg_daily':       avg_daily,
             'days_left':       days_left,
             'suggested_qty':   suggested_qty,
             'sales_series':    sales_series,
             'labels':          labels,
             'forecast_series': forecast_series,
+            'model_used':      auto_selected or model_key,
+            'model_name':      model_name,
             'notifications':   notifications,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 # ─── New Page Routes ─────────────────────────
+
 
 @app.route('/advisor')
 @login_required
