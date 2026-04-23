@@ -262,8 +262,9 @@ async function loadProductDropdown() {
 }
 
 async function onProductChange() {
-  const pid  = document.getElementById('productSelect').value;
-  const days = document.getElementById('daysSelect').value;
+  const pid   = document.getElementById('productSelect').value;
+  const days  = document.getElementById('daysSelect').value;
+  const model = document.getElementById('modelSel').value;   // ← was missing!
   if (!pid) return;
 
   const btn = document.getElementById('analyzeBtn');
@@ -272,7 +273,7 @@ async function onProductChange() {
   document.getElementById('resultsArea').style.display = 'none';
 
   try {
-    const r = await fetch(`/api/product-analysis/${pid}?days=${days}`, { credentials:'same-origin' });
+    const r = await fetch(`/api/product-analysis/${pid}?days=${days}&model=${model}`, { credentials:'same-origin' });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Failed');
     renderProductResults(d);
@@ -284,6 +285,7 @@ async function onProductChange() {
     btn.textContent = 'Analyse →'; btn.disabled = false;
   }
 }
+
 
 function renderProductResults(d) {
   const p    = d.product;
