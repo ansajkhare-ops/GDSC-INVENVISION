@@ -283,6 +283,14 @@ def login():
     return render_template('login.html')
 
 
+@app.before_request
+def refresh_db_if_needed():
+    """If DB failed at startup, retry on each request until it connects."""
+    global _db_available
+    if not _db_available:
+        _check_db()
+
+
 @app.route('/auth/google')
 def auth_google():
     redirect_uri = url_for('auth_google_callback', _external=True)
