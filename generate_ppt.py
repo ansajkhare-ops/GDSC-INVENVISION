@@ -66,9 +66,9 @@ box(s, 0, 0, 13.33, 0.08, ACCENT)
 # Big title
 txt(s, "InvenVision", 1.5, 1.5, 10, 1.8, size=72, bold=True,
     color=WHITE, align=PP_ALIGN.CENTER)
-txt(s, "AI-Powered Pharmacy Inventory Intelligence", 1.5, 3.1, 10, 0.8,
+txt(s, "AI-Powered Inventory Intelligence for Every Business", 1.5, 3.1, 10, 0.8,
     size=26, color=ACCENT, align=PP_ALIGN.CENTER)
-txt(s, "Predict · Manage · Never Run Out", 1.5, 3.85, 10, 0.6,
+txt(s, "Predict  ·  Manage  ·  Never Run Out", 1.5, 3.85, 10, 0.6,
     size=18, color=LGRAY, align=PP_ALIGN.CENTER)
 # Bottom bar
 box(s, 0, 7.1, 13.33, 0.4, RGBColor(0x06, 0x08, 0x0F))
@@ -87,7 +87,7 @@ txt(s, "The journey of a product — from manufacturer to your hands",
     0.7, 1.25, 12, 0.5, size=17, color=LGRAY)
 
 # Flow boxes
-steps = [("🏭", "Manufacturer", "Produces medicines\nin bulk"), 
+steps = [("🏭", "Manufacturer", "Produces goods\nin bulk"),
          ("🚚", "Distributor", "Transports & stores\nin warehouses"),
          ("🏪", "Retailer", "Sells to end\ncustomers"),
          ("👤", "Customer", "Receives the\nproduct")]
@@ -104,7 +104,7 @@ for i, (icon, title, desc) in enumerate(steps):
         txt(s, "→", x+2.83, 2.9, 0.4, 0.5, size=28, color=ACCENT,
             align=PP_ALIGN.CENTER)
 
-txt(s, "Each link in the chain depends on accurate inventory data to function efficiently.",
+txt(s, "Applies to every business — Pharmacy, Grocery, Retail, Electronics, Restaurant & more.",
     0.7, 5.0, 12, 0.6, size=16, color=LGRAY)
 txt(s, "Break one link → the entire chain fails.", 0.7, 5.55, 12, 0.5,
     size=18, bold=True, color=ORANGE)
@@ -120,17 +120,17 @@ txt(s, "Critical Problems in Supply Chain Management",
 
 problems = [
     ("📉", "Demand Forecasting Failure",
-     "Companies can't predict demand → overstock or stockout"),
-    ("🗑️", "Waste & Expiry",
-     "Medicines expire on shelves → ₹15,000+ annual loss per pharmacy"),
-    ("🔗", "Poor Visibility",
-     "No real-time view of stock levels across the chain"),
+     "Businesses can't predict demand → overstock or stockout — affects every sector"),
+    ("🗑️", "Waste & Dead Stock",
+     "Perishables, medicines, seasonal goods expire → ₹15,000+ loss per shop per year"),
+    ("🔗", "No Real-Time Visibility",
+     "No live view of stock levels — owners fly blind across all product categories"),
     ("📝", "Manual Tracking",
-     "Paper ledgers & Excel → errors, delays, data loss"),
-    ("💸", "Cash Flow Issues",
-     "Dead stock locks up capital that could be reinvested"),
-    ("⏰", "Reactive Decisions",
-     "Owners reorder only when stock runs out — too late!"),
+     "Paper ledgers & Excel → errors, delays, data loss in grocery, retail & pharmacy alike"),
+    ("💸", "Cash Flow Locked in Dead Stock",
+     "Overstocked products tie up capital that every small business desperately needs"),
+    ("⏰", "Reactive Decisions Only",
+     "Owners in every industry reorder only after running out — always one step behind"),
 ]
 for i, (icon, title, desc) in enumerate(problems):
     row, col = divmod(i, 2)
@@ -147,29 +147,38 @@ for i, (icon, title, desc) in enumerate(problems):
 s = slide(); bg(s)
 box(s, 0, 0, 13.33, 0.08, ORANGE)
 accent_bar(s, color=ORANGE)
-txt(s, "The Pharmacy Owner's Daily Nightmare",
+txt(s, "The Small Business Owner's Daily Nightmare",
     0.7, 0.6, 12, 0.7, size=34, bold=True, color=WHITE)
 
+# Industry tags
+industries = [("💊", "Pharmacy"), ("🛒", "Grocery"), ("👗", "Retail"),
+              ("📱", "Electronics"), ("🍽️", "Restaurant"), ("📦", "Wholesale")]
+for i, (ic, nm) in enumerate(industries):
+    x = 0.55 + i * 2.15
+    box(s, x, 1.35, 1.9, 0.55, RGBColor(0x22, 0x14, 0x04))
+    txt(s, ic + " " + nm, x+0.1, 1.43, 1.72, 0.38, size=13,
+        bold=True, color=ORANGE, align=PP_ALIGN.CENTER)
+
 # Stat cards
-stats = [("9 Lakh+", "Licensed pharmacies\nin India"),
+stats = [("63 Lakh+", "MSMEs in India\nwith inventory problems"),
          ("87%", "Still using paper\nor basic Excel"),
-         ("₹15,000", "Lost per year to\nexpired medicines"),
+         ("₹20,000", "Average annual loss\nto dead/expired stock"),
          ("1 in 3", "Customers lost due\nto stockouts")]
 for i, (num, label) in enumerate(stats):
     x = 0.55 + i * 3.1
-    box(s, x, 1.6, 2.85, 1.9, RGBColor(0x1A, 0x10, 0x04))
-    txt(s, num,   x+0.15, 1.75, 2.55, 0.9, size=38, bold=True,
+    box(s, x, 2.2, 2.85, 1.85, RGBColor(0x1A, 0x10, 0x04))
+    txt(s, num,   x+0.15, 2.35, 2.55, 0.9, size=36, bold=True,
         color=ORANGE, align=PP_ALIGN.CENTER)
-    txt(s, label, x+0.15, 2.6,  2.55, 0.7, size=13, color=LGRAY,
+    txt(s, label, x+0.15, 3.2,  2.55, 0.7, size=12, color=LGRAY,
         align=PP_ALIGN.CENTER)
 
-box(s, 0.6, 3.85, 12.1, 1.2, RGBColor(0x1A, 0x10, 0x04))
-txt(s, "😫  The reality:", 0.9, 3.95, 3, 0.5, size=17, bold=True, color=ORANGE)
-txt(s, '"I ordered too much Paracetamol last month — half of it expired.\n'
-       'This month I ran out of it in 2 days and lost 30 customers."',
-    3.5, 3.95, 9, 0.9, size=15, color=LGRAY)
-txt(s, "This is not a rare story. This is every small pharmacy owner in India. Every month.",
-    0.7, 5.3, 12, 0.5, size=17, bold=True, color=WHITE)
+box(s, 0.6, 4.35, 12.1, 1.2, RGBColor(0x1A, 0x10, 0x04))
+txt(s, "😫  The reality:", 0.9, 4.45, 3, 0.5, size=17, bold=True, color=ORANGE)
+txt(s, '"I ordered too much stock last month — half of it expired or became dead stock.\n'
+       'This month I ran out of my bestseller in 2 days and lost 30 customers."',
+    3.5, 4.45, 9, 0.9, size=14, color=LGRAY)
+txt(s, "This is not just a pharmacy problem. This is every small business owner in India. Every month.",
+    0.7, 5.75, 12, 0.5, size=16, bold=True, color=WHITE)
 
 # ══════════════════════════════════════════════════════════
 # SLIDE 5 — OUR SOLUTION
@@ -179,22 +188,22 @@ box(s, 0, 0, 13.33, 0.08, ACCENT)
 accent_bar(s, color=ACCENT)
 txt(s, "Introducing InvenVision", 0.7, 0.6, 12, 0.7, size=38,
     bold=True, color=WHITE)
-txt(s, "The AI Brain every pharmacy is missing", 0.7, 1.25, 12, 0.5,
+txt(s, "One platform. Every business. Zero stock surprises.", 0.7, 1.25, 12, 0.5,
     size=20, color=ACCENT)
 
 features = [
     ("🔮", "AI Demand Forecasting",
-     "6 mathematical models predict when you'll run out — before it happens"),
+     "6 models predict when ANY product will run out — pharmacy, grocery, retail & more"),
     ("🚨", "Plain-English Alerts",
-     '"Your Paracetamol will last only 2 more days. Order NOW." — anyone can use this'),
+     '"Your Rice stock will last only 2 more days. Order NOW." — works for any product'),
     ("📊", "Smart Analytics",
      "Revenue trends, top products, category insights — from real sales data"),
     ("🧾", "Full Billing System",
-     "Create invoices, auto-update inventory, track payments"),
+     "Create invoices, auto-update inventory, track payments — for any category"),
     ("📒", "Customer Khata",
-     "Digital credit ledger — credit sales + payments, always balanced"),
-    ("☁️", "Cloud-First",
-     "Works anywhere, multi-device, Supabase PostgreSQL — zero data loss"),
+     "Digital credit ledger — works for every business that gives credit to customers"),
+    ("☁️", "Cloud-First & Multi-User",
+     "Any device, anywhere — one account per shop, Supabase PostgreSQL, zero data loss"),
 ]
 for i, (icon, title, desc) in enumerate(features):
     row, col = divmod(i, 2)
@@ -316,7 +325,6 @@ txt(s, "What Makes InvenVision Different",
 compare = [
     ("Feature", "Traditional Tools", "InvenVision", True),
     ("Demand Forecasting", "❌  None", "✅  6 AI Models", False),
-    ("Setup Cost", "❌  ₹10,000-20,000/yr", "✅  Free / ₹499/month", False),
     ("Plain-English Alerts", "❌  Only numbers/reports", "✅  'Order NOW — 2 days left'", False),
     ("Cloud Database", "❌  Local PC only", "✅  Supabase PostgreSQL", False),
     ("Google Login", "❌  Username+Password", "✅  One-click OAuth", False),
@@ -337,40 +345,11 @@ for i, (feat, old, new, header) in enumerate(compare):
     txt(s, old,  4.65, y+0.1, 3.6, 0.45, size=13, bold=header, color=RED if not header else c)
     txt(s, new,  8.5, y+0.1, 4.2, 0.45, size=13, bold=header, color=cn)
 
-# ══════════════════════════════════════════════════════════
-# SLIDE 10 — BUSINESS IMPACT
-# ══════════════════════════════════════════════════════════
-s = slide(); bg(s)
-box(s, 0, 0, 13.33, 0.08, GREEN)
-accent_bar(s, color=GREEN)
-txt(s, "Business Impact & Market Opportunity",
-    0.7, 0.6, 12, 0.7, size=34, bold=True, color=WHITE)
-
-impacts = [
-    ("₹15,000", "Saved per pharmacy\nper year from expiry prevention", GREEN),
-    ("30%", "Reduction in stockout\nevents with AI forecasting", ACCENT),
-    ("₹499/mo", "Pro plan — affordable\nfor every pharmacy", YELLOW),
-    ("9L+", "Target pharmacies\nacross India", ORANGE),
-]
-for i, (num, label, color) in enumerate(impacts):
-    x = 0.55 + i * 3.1
-    box(s, x, 1.65, 2.85, 2.1, RGBColor(0x04, 0x18, 0x10))
-    txt(s, num,   x+0.15, 1.8,  2.55, 1.0, size=36, bold=True,
-        color=color, align=PP_ALIGN.CENTER)
-    txt(s, label, x+0.15, 2.78, 2.55, 0.8, size=13, color=LGRAY,
-        align=PP_ALIGN.CENTER)
-
-box(s, 0.55, 4.15, 12.2, 0.7, RGBColor(0x04, 0x18, 0x10))
-txt(s, "🎯  Revenue Potential:  1% adoption × 9L pharmacies × ₹499/month  =  ₹4.5 Crore MRR",
-    0.8, 4.22, 11.8, 0.55, size=16, bold=True, color=GREEN, align=PP_ALIGN.CENTER)
-
-txt(s, "Roadmap:", 0.7, 5.2, 3, 0.4, size=16, bold=True, color=WHITE)
-roadmap = "📱 PWA / Offline Mode  →  💬 WhatsApp Alerts  →  🤖 GPT-powered Reorder Advisor  →  🏥 Multi-branch Support"
-txt(s, roadmap, 0.7, 5.65, 12, 0.5, size=14, color=LGRAY)
 
 # ══════════════════════════════════════════════════════════
-# SLIDE 11 — LIVE DEPLOYMENT
+# SLIDE 10 — LIVE DEPLOYMENT
 # ══════════════════════════════════════════════════════════
+
 s = slide(); bg(s)
 box(s, 0, 0, 13.33, 0.08, ACCENT)
 accent_bar(s, color=ACCENT)
@@ -403,19 +382,19 @@ box(s, 0, 7.42, 13.33, 0.08, ACCENT)
 
 txt(s, "InvenVision", 1.5, 1.3, 10, 1.4, size=68, bold=True,
     color=WHITE, align=PP_ALIGN.CENTER)
-txt(s, "The Brain Every Pharmacy is Missing",
+txt(s, "The Brain Every Business is Missing",
     1.5, 2.7, 10, 0.7, size=26, color=ACCENT, align=PP_ALIGN.CENTER)
 
 box(s, 3.5, 3.65, 6.3, 0.06, RGBColor(0x1A, 0x2A, 0x3A))
 
 quotes = [
-    "🔮  Predict demand before stock runs out",
-    "🚨  Get plain-English alerts — not numbers",
-    "📊  See real analytics from real sales data",
-    "☁️  Live on cloud — works anywhere, anytime",
+    "🔮  Predict demand before stock runs out — any product, any category",
+    "🚨  Get plain-English alerts — not numbers, not reports",
+    "📊  See real analytics from real sales data — automatically",
+    "☁️  One platform for Pharmacy, Grocery, Retail, Electronics & more",
 ]
 for i, q in enumerate(quotes):
-    txt(s, q, 2.5, 4.0 + i*0.55, 8.3, 0.5, size=16, color=LGRAY,
+    txt(s, q, 2.0, 4.0 + i*0.55, 9.3, 0.5, size=15, color=LGRAY,
         align=PP_ALIGN.CENTER)
 
 txt(s, "Thank You", 1.5, 6.5, 10, 0.8, size=32, bold=True,
