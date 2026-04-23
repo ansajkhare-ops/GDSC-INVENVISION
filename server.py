@@ -360,10 +360,38 @@ def linear_regression_forecast(data):
     sl = num/den if den else 0; ic = ym - sl*xm
     return [max(0.0, ic + sl*(n-1+h)) for h in range(1, 15)]
 
-MODELS = {'sma': simple_moving_average, 'ema': exponential_moving_average,
-          'holt': holts_double_exponential, 'linear': linear_regression_forecast}
-MODEL_NAMES = {'sma':'Simple Moving Average','ema':'Exponential Moving Average',
-               'holt':"Holt's Double Exponential",'linear':'Linear Regression'}
+def weighted_moving_average(data, window=7):
+    w = min(window, len(data))
+    weights = list(range(1, w + 1))
+    total_w = sum(weights)
+    series, out = data[:], []
+    for _ in range(14):
+        seg = series[-w:]
+        wma_val = sum(v * weights[i] for i, v in enumerate(seg)) / total_w
+        out.append(max(0.0, wma_val)); series.append(wma_val)
+    return out
+
+def seasonal_naive(data, period=7):
+    if len(data) < period:
+        return exponential_moving_average(data)
+    return [max(0.0, data[-(period - (i % period))]) for i in range(14)]
+
+MODELS = {
+    'sma':    simple_moving_average,
+    'ema':    exponential_moving_average,
+    'wma':    weighted_moving_average,
+    'holt':   holts_double_exponential,
+    'linear': linear_regression_forecast,
+    'naive':  seasonal_naive,
+}
+MODEL_NAMES = {
+    'sma':    'Simple Moving Average',
+    'ema':    'Exponential Moving Average',
+    'wma':    'Weighted Moving Average',
+    'holt':   "Holt's Double Exponential",
+    'linear': 'Linear Regression',
+    'naive':  'Seasonal Naive',
+}
 
 def auto_select_model(data):
     if len(data) < 6: return 'ema', exponential_moving_average
@@ -492,16 +520,18 @@ def get_inventory():
         return jsonify({'items': [], 'db_available': False})
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             cur.execute("""
                 SELECT id, item_name, current_stock, reorder_point,
                        next_week, next_month, days_left, status, updated_date,
                        expiry_date,
-                       DATEDIFF(expiry_date, CURDATE()) as days_to_expiry
+                       CASE WHEN expiry_date IS NOT NULL
+                            THEN (expiry_date - CURRENT_DATE)::int
+                            ELSE NULL END as days_to_expiry
                 FROM inventory WHERE user_email=%s
                 ORDER BY updated_at DESC
             """, (email,))
-            items = cur.fetchall()
+            items = list(cur.fetchall())
         return jsonify({'items': items, 'db_available': True})
     except Exception as e:
         return jsonify({'error': str(e), 'db_available': False}), 500
@@ -781,10 +811,10 @@ def reorder_advisor():
         return jsonify({'items': []})
     try:
         with get_db() as conn:
-            cur = conn.cursor(dictionary=True)
+            cur = dict_cursor(conn)
             # Get all products
             cur.execute("SELECT * FROM products WHERE user_email=%s", (email,))
-            products = cur.fetchall()
+            products = list(cur.fetchall())
             results = []
             for p in products:
                 pid          = p['id']
