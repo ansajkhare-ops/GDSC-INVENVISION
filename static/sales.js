@@ -222,7 +222,10 @@ function renderInvoices(invoices) {
       <td class="bold">₹${fmt(inv.total)}</td>
       <td><span class="badge badge-blue">${esc(inv.payment_mode)}</span></td>
       <td><span class="badge badge-green">Paid</span></td>
-      <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();viewInvoice(${inv.id})">View</button></td>
+      <td style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();viewInvoice(${inv.id})">View</button>
+        <button class="btn btn-sm" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" onclick="event.stopPropagation();deleteInvoice(${inv.id},'${esc(inv.invoice_no)}')" title="Delete invoice">🗑️</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -236,9 +239,23 @@ async function viewInvoice(id) {
   try {
     const r = await fetch(`/api/invoices/${id}`, { credentials:'same-origin' });
     const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed to load');
     currentInvoiceData = d;
     showInvoice(d);
-  } catch(e) { showToast('Failed to load invoice', 'error'); }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteInvoice(id, invNo) {
+  if (!confirm(`Delete Invoice #${invNo}?\n\nStock will be restored automatically.`)) return;
+  try {
+    const r = await fetch(`/api/invoices/${id}`, { method:'DELETE', credentials:'same-origin' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Delete failed');
+    showToast(`✅ Invoice #${invNo} deleted. Stock restored.`);
+    // Close view modal if open
+    closeModal('invoiceViewModal');
+    loadInvoices();
+  } catch(e) { showToast(e.message, 'error'); }
 }
 
 // Close search dropdown when clicking outside
@@ -246,3 +263,4 @@ document.addEventListener('click', e => {
   const res = document.getElementById('productSearchResults');
   if (res && !res.contains(e.target) && e.target.id !== 'productSearchInput') res.style.display = 'none';
 });
+

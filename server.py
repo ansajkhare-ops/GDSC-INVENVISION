@@ -1495,14 +1495,52 @@ def get_invoice(inv_id):
         with get_db() as conn:
             cur = dict_cursor(conn)
             cur.execute("SELECT * FROM invoices WHERE id=%s AND user_email=%s", (inv_id, email))
-            inv = dict(cur.fetchone()) if cur.fetchone() else None
-            if not inv:
+            row = cur.fetchone()                     # ← fetch ONCE and store
+            if not row:
                 return jsonify({'error': 'Not found'}), 404
+            inv = dict(row)                          # ← convert to plain dict
             cur.execute("SELECT * FROM invoice_items WHERE invoice_id=%s", (inv_id,))
-            inv['items'] = list(cur.fetchall())
+            inv['items'] = [dict(r) for r in cur.fetchall()]   # ← convert each row
+            # Serialize datetime
             if hasattr(inv.get('created_at'), 'strftime'):
                 inv['created_at'] = inv['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            for item in inv['items']:
+                if hasattr(item.get('created_at'), 'strftime'):
+                    item['created_at'] = item['created_at'].strftime('%Y-%m-%d %H:%M:%S')
         return jsonify(inv)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/invoices/<int:inv_id>', methods=['DELETE'])
+@login_required
+def delete_invoice(inv_id):
+    """Delete an invoice and restore stock quantities."""
+    email = session['user']['email']
+    if not _db_available:
+        return jsonify({'error': 'DB not available'}), 503
+    try:
+        with get_db() as conn:
+            cur = dict_cursor(conn)
+            # Verify ownership
+            cur.execute("SELECT id FROM invoices WHERE id=%s AND user_email=%s", (inv_id, email))
+            if not cur.fetchone():
+                return jsonify({'error': 'Invoice not found'}), 404
+            # Get items to restore stock
+            cur.execute("SELECT product_id, quantity FROM invoice_items WHERE invoice_id=%s AND user_email=%s",
+                        (inv_id, email))
+            items = list(cur.fetchall())
+            # Restore stock for each item
+            for item in items:
+                if item['product_id']:
+                    cur.execute("""
+                        UPDATE products
+                        SET current_stock = current_stock + %s
+                        WHERE id=%s AND user_email=%s
+                    """, (item['quantity'], item['product_id'], email))
+            # Delete invoice (cascade deletes invoice_items)
+            cur.execute("DELETE FROM invoices WHERE id=%s AND user_email=%s", (inv_id, email))
+        return jsonify({'success': True, 'message': 'Invoice deleted and stock restored'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1512,3 +1550,4 @@ if __name__ == '__main__':
     init_db()
     print('[OK] InvenVision running at http://127.0.0.1:5000\n')
     app.run(debug=True, port=5000)
+
