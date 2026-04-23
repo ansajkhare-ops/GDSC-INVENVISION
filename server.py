@@ -341,48 +341,93 @@ def logout():
 # ─── Forecasting Algorithms ───────────────────
 
 def simple_moving_average(data, window=7):
-    w, series, out = min(window, len(data)), data[:], []
-    for _ in range(14):
-        avg = sum(series[-w:]) / w
-        out.append(avg); series.append(avg)
-    return out
+    """SMA: uses rolling window. Trend from last vs earlier period drives projection."""
+    w = min(window, len(data))
+    base_avg = sum(data[-w:]) / w
+    # Detect recent momentum: compare last-half vs first-half of the window
+    half = max(1, w // 2)
+    recent_avg = sum(data[-half:]) / half
+    older_avg  = sum(data[-w:-half]) / max(half, 1) if w > half else base_avg
+    momentum   = (recent_avg - older_avg) / half
+    result = []
+    for i in range(14):
+        damping = 0.88 ** i          # momentum fades over time
+        val = max(0.0, base_avg + momentum * (i + 1) * damping)
+        result.append(round(val, 2))
+    return result
+
 
 def exponential_moving_average(data, alpha=0.3):
+    """EMA: uses smoothing + recent momentum (dampened) for 14-day projection."""
     ema = data[0]
-    for v in data[1:]: ema = alpha * v + (1 - alpha) * ema
-    return [ema] * 14
+    for v in data[1:]:
+        ema = alpha * v + (1 - alpha) * ema
+    # Calculate short-term momentum from last 5 values
+    n = min(5, len(data))
+    recent = data[-n:]
+    if n >= 2:
+        momentum = (recent[-1] - recent[0]) / (n - 1)
+    else:
+        momentum = 0.0
+    result = []
+    for i in range(14):
+        damping = 0.80 ** i          # momentum decays further out
+        val = max(0.0, ema + momentum * (i + 1) * damping)
+        result.append(round(val, 2))
+    return result
+
 
 def holts_double_exponential(data, alpha=0.4, beta=0.3):
-    if len(data) < 2: return exponential_moving_average(data)
+    """Holt's: tracks level + trend — best for growing/declining sales."""
+    if len(data) < 2:
+        return exponential_moving_average(data)
     S, T = data[0], data[1] - data[0]
     for v in data[1:]:
         Sp, Tp = S, T
         S = alpha * v + (1 - alpha) * (Sp + Tp)
         T = beta * (S - Sp) + (1 - beta) * Tp
-    return [max(0.0, S + h * T) for h in range(1, 15)]
+    return [max(0.0, round(S + h * T, 2)) for h in range(1, 15)]
+
 
 def linear_regression_forecast(data):
-    n = len(data); xm = (n-1)/2; ym = sum(data)/n
-    num = sum((i-xm)*(data[i]-ym) for i in range(n))
-    den = sum((i-xm)**2 for i in range(n))
-    sl = num/den if den else 0; ic = ym - sl*xm
-    return [max(0.0, ic + sl*(n-1+h)) for h in range(1, 15)]
+    """Linear Regression: fits a straight-line trend through all data."""
+    n = len(data); xm = (n - 1) / 2; ym = sum(data) / n
+    num = sum((i - xm) * (data[i] - ym) for i in range(n))
+    den = sum((i - xm) ** 2 for i in range(n))
+    sl = num / den if den else 0
+    ic = ym - sl * xm
+    return [max(0.0, round(ic + sl * (n - 1 + h), 2)) for h in range(1, 15)]
+
 
 def weighted_moving_average(data, window=7):
+    """WMA: recent days get higher weights + carries momentum forward."""
     w = min(window, len(data))
-    weights = list(range(1, w + 1))
-    total_w = sum(weights)
-    series, out = data[:], []
-    for _ in range(14):
-        seg = series[-w:]
-        wma_val = sum(v * weights[i] for i, v in enumerate(seg)) / total_w
-        out.append(max(0.0, wma_val)); series.append(wma_val)
-    return out
+    weights   = list(range(1, w + 1))
+    total_w   = sum(weights)
+    base_wma  = sum(data[-w:][i] * weights[i] for i in range(w)) / total_w
+    # Momentum: weighted recent vs older
+    half = max(1, w // 2)
+    r_w  = list(range(1, half + 1))
+    o_w  = list(range(1, w - half + 1))
+    recent_wma = sum(data[-half:][i] * r_w[i] for i in range(half)) / sum(r_w)
+    older_wma  = (sum(data[-w:-half][i] * o_w[i] for i in range(w - half)) / sum(o_w)
+                  if w > half else base_wma)
+    momentum = (recent_wma - older_wma) / max(half, 1)
+    result = []
+    for i in range(14):
+        damping = 0.85 ** i
+        val = max(0.0, base_wma + momentum * (i + 1) * damping)
+        result.append(round(val, 2))
+    return result
+
 
 def seasonal_naive(data, period=7):
+    """Seasonal Naive: repeats the same weekday sales from last cycle."""
     if len(data) < period:
         return exponential_moving_average(data)
-    return [max(0.0, data[-(period - (i % period))]) for i in range(14)]
+    return [max(0.0, round(data[-(period - (i % period))], 2)) for i in range(14)]
+
+
 
 MODELS = {
     'sma':    simple_moving_average,
