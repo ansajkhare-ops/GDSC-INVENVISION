@@ -73,21 +73,35 @@ for (name, cat, unit, bp, sp, mn, cs) in products:
 print(f"Inserted {len(products)} products.")
 
 # ── 3. Sales history — 30 days ────────────────────────────
-# Daily qty sold per product (realistic patterns)
+# Daily qty sold — dramatic varied patterns so AI models show real differences
+import math
 daily_sales_pattern = {
-    'Tomato':     lambda d: random.choice([4,5,6,7,6,5,8]),      # high demand
-    'Potato':     lambda d: random.choice([5,6,7,8,5,6,7]),      # steady
-    'Onion':      lambda d: random.choice([3,4,5,4,3,4,5]),      # moderate
-    'Spinach':    lambda d: random.choice([2,3,2,3,2,1,3]),      # low-moderate
-    'Carrot':     lambda d: random.choice([2,3,4,3,2,3,2]),      # moderate
-    'Capsicum':   lambda d: random.choice([1,2,1,2,1,2,1]),      # low
-    'Banana':     lambda d: random.choice([3,4,5,4,3,5,6]),      # good demand
-    'Apple':      lambda d: random.choice([2,3,2,3,1,2,3]),      # moderate
-    'Mango':      lambda d: random.choice([4,5,6,5,4,6,7]),      # high seasonal
-    'Watermelon': lambda d: random.choice([1,2,1,2,2,1,2]),      # low
-    'Grapes':     lambda d: random.choice([1,2,2,1,2,1,2]),      # low
-    'Papaya':     lambda d: random.choice([2,3,2,2,3,2,3]),      # moderate
+    # Tomato: spiky high demand with random variation
+    'Tomato':    lambda i: max(1, round(6 + 4*math.sin(i/3) + random.randint(-2,3))),
+    # Potato: steadily growing trend
+    'Potato':    lambda i: max(1, round(4 + i*0.3 + random.randint(-1,2))),
+    # Onion: declining trend (oversupplied)
+    'Onion':     lambda i: max(0, round(10 - i*0.25 + random.randint(-2,1))),
+    # Spinach: strong weekly seasonality (high Mon/Fri, low Wed)
+    'Spinach':   lambda i: max(0, round([5,3,2,3,6,7,4][i%7] + random.randint(-1,1))),
+    # Carrot: flat stable demand
+    'Carrot':    lambda i: max(1, round(3 + random.randint(-1,2))),
+    # Capsicum: random volatile
+    'Capsicum':  lambda i: max(0, round(2 + random.randint(-1,4))),
+    # Banana: growing seasonal trend
+    'Banana':    lambda i: max(1, round(3 + i*0.2 + random.randint(-1,2))),
+    # Apple: strong weekly pattern
+    'Apple':     lambda i: max(0, round([4,2,2,3,5,6,3][i%7] + random.randint(-1,1))),
+    # Mango: sharp spike then decline
+    'Mango':     lambda i: max(0, round(max(1, 8 - abs(i-10)) + random.randint(-1,2))),
+    # Watermelon: weekend spikes
+    'Watermelon':lambda i: max(0, round([1,1,1,1,2,4,3][i%7] + random.randint(0,1))),
+    # Grapes: declining
+    'Grapes':    lambda i: max(0, round(max(0, 6 - i*0.18) + random.randint(-1,1))),
+    # Papaya: very volatile
+    'Papaya':    lambda i: max(0, round(3 + random.randint(-2,5))),
 }
+
 
 customers = [
     ('Ramesh Sabziwala', '9876543210'),
@@ -115,7 +129,7 @@ for days_ago in range(29, -1, -1):          # 30 days back → today
         subtotal = 0
         for pname in chosen:
             pid, sp, unit = product_ids[pname]
-            qty   = daily_sales_pattern[pname](sale_date)
+            qty   = daily_sales_pattern[pname](29 - days_ago)   # 0=oldest, 29=today
             total = round(qty * sp, 2)
             subtotal += total
             items.append((pid, pname, qty, sp, total))
