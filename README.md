@@ -86,7 +86,7 @@ The system proactively tells you:
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/yourusername/invenvision.git
+git clone https://github.com/ansajkhare-ops/GDSC-INVENVISION.git
 cd invenvision
 
 # 2. Install dependencies
